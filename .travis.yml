@@ -1,0 +1,18 @@
+language: go
+
+env:
+  - COVERALLS_TOKEN=EShYbHhNxrURLtYJCyCdP2AhDh63o0dzw
+
+before_install:
+  - go get github.com/mattn/goveralls
+  - go get github.com/modocache/gover
+
+script:
+  - go test -race -v ./...
+  - ./coveralls.bash
+
+go:
+  - 1.8.x
+  - 1.9.x
+  - 1.10.x
+  - tip
