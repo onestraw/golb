@@ -54,7 +54,8 @@ func (p *Pool) Size() int {
 	return len(p.sortedHashes) / p.replica
 }
 
-func (p *Pool) Add(peer *Peer) {
+func (p *Pool) Add(addr string) {
+	peer := &Peer{addr}
 	p.Lock()
 	defer p.Unlock()
 
@@ -72,7 +73,7 @@ func (p *Pool) Add(peer *Peer) {
 	})
 }
 
-func (p *Pool) Remove(peer *Peer) {
+func (p *Pool) Remove(peerAddr string) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -85,7 +86,7 @@ func (p *Pool) Remove(peer *Peer) {
 	}
 
 	for i := 0; i < p.replica; i++ {
-		h := p.hash(p.vKey(peer.addr, i))
+		h := p.hash(p.vKey(peerAddr, i))
 		delete(p.vNodes, h)
 		deleteSortedHashes(h)
 	}
@@ -93,12 +94,12 @@ func (p *Pool) Remove(peer *Peer) {
 
 // Get use a key to map the backend server
 // key may be a cookie or request_uri
-func (p *Pool) Get(key string) *Peer {
+func (p *Pool) Get(key string) string {
 	p.RLock()
 	defer p.RUnlock()
 
 	if len(p.vNodes) <= 0 {
-		return nil
+		return ""
 	}
 
 	h := p.hash(key)
@@ -108,5 +109,14 @@ func (p *Pool) Get(key string) *Peer {
 	if idx >= len(p.sortedHashes) {
 		idx = 0
 	}
-	return p.vNodes[p.sortedHashes[idx]]
+	return p.vNodes[p.sortedHashes[idx]].addr
+}
+
+func CreatePool(addrs []string) *Pool {
+	pool := New()
+	for _, addr := range addrs {
+		pool.Add(addr)
+	}
+
+	return pool
 }
