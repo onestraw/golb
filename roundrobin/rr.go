@@ -48,8 +48,12 @@ func (p *Pool) Size() int {
 	return len(p.peers)
 }
 
-func (p *Pool) Add(addr string, weight int) {
-	if addr == "" {
+func (p *Pool) Add(addr string, args ...interface{}) {
+	if addr == "" || len(args) == 0 {
+		return
+	}
+	weight, ok := args[0].(int)
+	if !ok {
 		return
 	}
 	peer := CreatePeer(addr, weight)
@@ -83,7 +87,7 @@ func (p *Pool) Remove(addr string) {
 }
 
 // GetPeer return peer in smooth weighted roundrobin method
-func (p *Pool) Get() string {
+func (p *Pool) Get(args ...interface{}) string {
 	p.RLock()
 	defer p.RUnlock()
 

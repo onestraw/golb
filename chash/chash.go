@@ -54,7 +54,7 @@ func (p *Pool) Size() int {
 	return len(p.sortedHashes) / p.replica
 }
 
-func (p *Pool) Add(addr string) {
+func (p *Pool) Add(addr string, args ...interface{}) {
 	peer := &Peer{addr}
 	p.Lock()
 	defer p.Unlock()
@@ -94,7 +94,16 @@ func (p *Pool) Remove(peerAddr string) {
 
 // Get use a key to map the backend server
 // key may be a cookie or request_uri
-func (p *Pool) Get(key string) string {
+func (p *Pool) Get(args ...interface{}) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	key, ok := args[0].(string)
+	if !ok {
+		return ""
+	}
+
 	p.RLock()
 	defer p.RUnlock()
 
