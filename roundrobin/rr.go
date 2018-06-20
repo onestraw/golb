@@ -15,18 +15,27 @@ type Peer struct {
 	sync.RWMutex
 }
 
-// Pool is a group of Peers, one Peer can not belong to multiple Pool
-type Pool struct {
-	peers   []*Peer
-	current uint64
-	sync.RWMutex
-}
-
 func (p *Peer) String() string {
 	p.RLock()
 	defer p.RUnlock()
 	return fmt.Sprintf("%s: (w=%d, ew=%d, cw=%d)",
 		p.addr, p.weight, p.effective_weight, p.current_weight)
+}
+
+func CreatePeer(addr string, weight int) *Peer {
+	return &Peer{
+		addr:             addr,
+		weight:           weight,
+		effective_weight: weight,
+		current_weight:   0,
+	}
+}
+
+// Pool is a group of Peers, one Peer can not belong to multiple Pool
+type Pool struct {
+	peers   []*Peer
+	current uint64
+	sync.RWMutex
 }
 
 func (p *Pool) String() string {
@@ -39,26 +48,28 @@ func (p *Pool) Size() int {
 	return len(p.peers)
 }
 
-func (p *Pool) Add(peer *Peer) {
-	if peer == nil {
+func (p *Pool) Add(addr string, weight int) {
+	if addr == "" {
 		return
 	}
+	peer := CreatePeer(addr, weight)
+
 	p.Lock()
 	defer p.Unlock()
 
 	p.peers = append(p.peers, peer)
 }
 
-func (p *Pool) Remove(peer *Peer) {
-	if peer == nil {
+func (p *Pool) Remove(addr string) {
+	if addr == "" {
 		return
 	}
 	p.Lock()
 	defer p.Unlock()
 
 	indexOfPeer := func() int {
-		for i, pr := range p.peers {
-			if pr.addr == peer.addr {
+		for i, peer := range p.peers {
+			if peer.addr == addr {
 				return i
 			}
 		}
@@ -72,7 +83,7 @@ func (p *Pool) Remove(peer *Peer) {
 }
 
 // GetPeer return peer in smooth weighted roundrobin method
-func (p *Pool) Get() *Peer {
+func (p *Pool) Get() string {
 	p.RLock()
 	defer p.RUnlock()
 
@@ -97,35 +108,33 @@ func (p *Pool) Get() *Peer {
 		best.Lock()
 		best.current_weight -= total
 		best.Unlock()
+		return best.addr
 	}
-	return best
+	return ""
 }
 
 // EqualGetPeer get peer by turn, without considering weight
-func (p *Pool) EqualGet() *Peer {
+func (p *Pool) EqualGet() string {
 	p.RLock()
 	defer p.RUnlock()
 
 	if p.Size() <= 0 {
-		return nil
+		return ""
 	}
 
 	old := atomic.AddUint64(&p.current, 1) - 1
 	idx := old % uint64(p.Size())
 
-	return p.peers[idx]
+	return p.peers[idx].addr
 }
 
-func CreatePeer(addr string, weight int) *Peer {
-	return &Peer{
-		addr:             addr,
-		weight:           weight,
-		effective_weight: weight,
-		current_weight:   0,
+func CreatePool(pairs map[string]int) *Pool {
+	peers := make([]*Peer, len(pairs))
+	i := 0
+	for addr, weight := range pairs {
+		peers[i] = CreatePeer(addr, weight)
+		i += 1
 	}
-}
-
-func CreatePool(peers []*Peer) *Pool {
 	return &Pool{
 		peers:   peers,
 		current: 0,
