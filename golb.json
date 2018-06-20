@@ -1,0 +1,33 @@
+{
+  "virtual_server": [
+    {
+      "address": "127.0.0.1:8081",
+      "server_name": "localhost",
+      "pool": [
+        {
+          "address": "127.0.0.1:10001",
+          "weight": 1
+        },
+        {
+          "address": "127.0.0.1:10002",
+          "weight": 2
+        }
+      ],
+      "protocol": "http",
+      "lb_method": "round-robin"
+    },
+    {
+      "address": "127.0.0.1:8082",
+      "pool": [
+        {
+          "address": "127.0.0.1:10003"
+        },
+        {
+          "address": "127.0.0.1:10004"
+        }
+      ],
+      "protocol": "http",
+      "lb_method": "consistent-hash"
+    }
+  ]
+}
