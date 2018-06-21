@@ -5,6 +5,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -18,6 +19,9 @@ const (
 	LB_COSISTENTHASH = "consistent-hash"
 	PROTO_HTTP       = "http"
 	PROTO_GRPC       = "grpc"
+
+	DEFAULT_FAILTIMEOUT = 7
+	DEFAULT_MAXFAILS    = 2
 )
 
 type Pooler interface {
@@ -32,14 +36,26 @@ type Pooler interface {
 
 type VirtualServer struct {
 	sync.RWMutex
-	Name         string
-	Address      string
-	ServerName   string
-	Protocol     string
-	LBMethod     string
-	Pool         Pooler
-	rp_lock      sync.RWMutex
+	Name       string
+	Address    string
+	ServerName string
+	Protocol   string
+	LBMethod   string
+	Pool       Pooler
+
+	// maximum fails before mark peer down
+	MaxFails int
+	fails    map[string]int
+
+	// timeout before retry a down peer
+	FailTimeout int64
+	timeout     map[string]int64
+
+	// used for fails/timeout
+	pool_lock sync.RWMutex
+
 	ReverseProxy map[string]*httputil.ReverseProxy
+	rp_lock      sync.RWMutex
 }
 
 type VirtualServerOption func(*VirtualServer) error
@@ -114,6 +130,10 @@ func PoolOpt(method string, peers []config.Server) VirtualServerOption {
 
 func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	vs := &VirtualServer{
+		MaxFails:     DEFAULT_MAXFAILS,
+		FailTimeout:  DEFAULT_FAILTIMEOUT,
+		fails:        make(map[string]int),
+		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
 	}
 	for _, opt := range opts {
@@ -144,6 +164,18 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		WriteError(w, ErrHostNotMatch)
 		return
 	}
+
+	s.pool_lock.Lock()
+	now := time.Now().Unix()
+	for k, v := range s.timeout {
+		if s.fails[k] >= s.MaxFails && now-v >= s.FailTimeout {
+			log.Infof("Mark up peer: %s", k)
+			s.Pool.UpPeer(k)
+			s.fails[k] = 0
+		}
+	}
+	s.pool_lock.Unlock()
+
 	// use client's address as hash key if using consistent-hash method
 	peer := s.Pool.Get(r.RemoteAddr)
 	if peer == "" {
@@ -173,9 +205,20 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	rw := LBResponseWriter{w, 200}
 	rp.ServeHTTP(&rw, r)
+
 	log.Infof("response code: %d", rw.code)
 	if rw.code/100 == 5 {
-		s.Pool.DownPeer(peer)
+		s.pool_lock.Lock()
+		if _, ok := s.fails[peer]; !ok {
+			s.fails[peer] = 0
+		}
+		s.fails[peer] += 1
+		if s.fails[peer] >= s.MaxFails {
+			log.Infof("Mark down peer: %s", peer)
+			s.Pool.DownPeer(peer)
+			s.timeout[peer] = time.Now().Unix()
+		}
+		s.pool_lock.Unlock()
 	}
 }
 
