@@ -18,8 +18,19 @@ type VirtualServer struct {
 	Pool       []Server `json:"pool"`
 }
 
+type Authentication struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type Controller struct {
+	Address string         `json:"address"`
+	Auth    Authentication `json:"auth"`
+}
+
 type Configuration struct {
-	VServers []VirtualServer `json:"virtual_server"`
+	Controller Controller      `json:"controller"`
+	VServers   []VirtualServer `json:"virtual_server"`
 }
 
 func (c *Configuration) Load(configFile string) error {

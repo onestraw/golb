@@ -14,7 +14,8 @@ import (
 )
 
 type Service struct {
-	VServers []*VirtualServer
+	Controller *Controller
+	VServers   []*VirtualServer
 }
 
 func New(configFile string) (*Service, error) {
@@ -37,7 +38,13 @@ func New(configFile string) (*Service, error) {
 		ss[i] = s
 	}
 
-	return &Service{VServers: ss}, nil
+	ctlCfg := c.Controller
+	ctl := &Controller{
+		Address: ctlCfg.Address,
+		Auth:    &Authentication{ctlCfg.Auth.Username, ctlCfg.Auth.Password},
+	}
+
+	return &Service{VServers: ss, Controller: ctl}, nil
 }
 
 func (s *Service) Run() error {
@@ -45,6 +52,8 @@ func (s *Service) Run() error {
 
 	sigC := make(chan os.Signal)
 	signal.Notify(sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
+
+	go s.Controller.Run(s)
 
 	for _, vs := range s.VServers {
 		go func(s *VirtualServer) {

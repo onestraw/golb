@@ -1,4 +1,11 @@
 {
+  "controller": {
+      "address": "127.0.0.1:6587",
+      "auth": {
+          "username": "admin",
+          "password": "admin"
+      }
+  },
   "virtual_server": [
     {
       "address": "127.0.0.1:8081",

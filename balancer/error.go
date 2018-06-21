@@ -16,6 +16,7 @@ type BalancerError struct {
 }
 
 var (
+	ErrUnauthorized     = BalancerError{http.StatusUnauthorized, "Unauthorized"}
 	ErrHostNotMatch     = BalancerError{http.StatusBadGateway, "Host Not Match"}
 	ErrPeerNotFound     = BalancerError{http.StatusBadGateway, "Peer Not Found"}
 	ErrInternalBalancer = BalancerError{http.StatusInternalServerError, "Balaner Internal Error"}
