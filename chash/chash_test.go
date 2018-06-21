@@ -111,3 +111,54 @@ func TestRemove(t *testing.T) {
 		}
 	}
 }
+
+func TestDownPeer(t *testing.T) {
+	var rtestsBefore = []gtest{
+		{"/redis-B", "1.1.1.1"},
+		{"/login", "2.2.2.2"},
+		{"/detail", "3.3.3.3"},
+	}
+	var rtestsAfter = []gtest{
+		{"/redis-B", "3.3.3.3"},
+		{"/login", "2.2.2.2"},
+		{"/detail", "3.3.3.3"},
+	}
+
+	pool := New()
+	for _, tc := range rtestsBefore {
+		pool.Add(tc.out)
+	}
+
+	for i, v := range rtestsBefore {
+		result := pool.Get(v.in)
+		if result != v.out {
+			t.Errorf("%d. got %q, expected %q before down", i, result, v.out)
+		}
+	}
+
+	pool.DownPeer("1.1.1.1")
+	for i, v := range rtestsAfter {
+		result := pool.Get(v.in)
+		if result != v.out {
+			t.Errorf("%d. got %q, expected %q after down", i, result, v.out)
+		}
+	}
+
+	pool.UpPeer("1.1.1.1")
+	for i, v := range rtestsBefore {
+		result := pool.Get(v.in)
+		if result != v.out {
+			t.Errorf("%d. got %q, expected %q after up", i, result, v.out)
+		}
+	}
+
+	pool.DownPeer("1.1.1.1")
+	pool.DownPeer("2.2.2.2")
+	pool.DownPeer("3.3.3.3")
+	for i, v := range rtestsBefore {
+		result := pool.Get(v.in)
+		if result != "" {
+			t.Errorf("%d. got %q, expected '' after down all", i, result)
+		}
+	}
+}

@@ -9,7 +9,9 @@ import (
 )
 
 type Peer struct {
+	sync.RWMutex
 	addr string
+	down bool
 }
 
 type Pool struct {
@@ -18,6 +20,7 @@ type Pool struct {
 	vNodes       map[uint32]*Peer
 	sortedHashes []uint32
 	nodes        map[string]bool
+	downNum      int
 }
 
 func New() *Pool {
@@ -26,6 +29,7 @@ func New() *Pool {
 		vNodes:       map[uint32]*Peer{},
 		sortedHashes: []uint32{},
 		nodes:        map[string]bool{},
+		downNum:      0,
 	}
 }
 
@@ -63,7 +67,7 @@ func (p *Pool) Add(addr string, args ...interface{}) {
 		return
 	}
 	p.nodes[addr] = true
-	peer := &Peer{addr}
+	peer := &Peer{addr: addr, down: false}
 
 	for i := 0; i < p.replica; i++ {
 		h := p.hash(p.vKey(peer.addr, i))
@@ -97,9 +101,42 @@ func (p *Pool) Remove(peerAddr string) {
 
 	for i := 0; i < p.replica; i++ {
 		h := p.hash(p.vKey(peerAddr, i))
+		if p.vNodes[h].down {
+			p.downNum -= 1
+		}
 		delete(p.vNodes, h)
 		deleteSortedHashes(h)
 	}
+}
+
+func (p *Pool) setPeerStatus(peerAddr string, isDown bool) {
+	p.Lock()
+	defer p.Unlock()
+
+	if _, ok := p.nodes[peerAddr]; !ok {
+		return
+	}
+	idx := 1
+	h := p.hash(p.vKey(peerAddr, idx))
+	peer := p.vNodes[h]
+	if peer.down != isDown {
+		if isDown {
+			p.downNum += 1
+		} else {
+			p.downNum -= 1
+		}
+		peer.Lock()
+		peer.down = isDown
+		peer.Unlock()
+	}
+}
+
+func (p *Pool) DownPeer(addr string) {
+	p.setPeerStatus(addr, true)
+}
+
+func (p *Pool) UpPeer(addr string) {
+	p.setPeerStatus(addr, false)
 }
 
 // Get use a key to map the backend server
@@ -117,13 +154,13 @@ func (p *Pool) Get(args ...interface{}) string {
 	p.RLock()
 	defer p.RUnlock()
 
-	if len(p.vNodes) <= 0 {
+	if len(p.vNodes) <= 0 || p.downNum >= p.Size() {
 		return ""
 	}
 
 	h := p.hash(key)
 	idx := sort.Search(len(p.sortedHashes), func(i int) bool {
-		return p.sortedHashes[i] >= h
+		return p.sortedHashes[i] >= h && !p.vNodes[p.sortedHashes[i]].down
 	})
 	if idx >= len(p.sortedHashes) {
 		idx = 0
