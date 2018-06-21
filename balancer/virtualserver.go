@@ -26,6 +26,8 @@ type Pooler interface {
 	Get(args ...interface{}) string
 	Add(addr string, args ...interface{})
 	Remove(addr string)
+	DownPeer(addr string)
+	UpPeer(addr string)
 }
 
 type VirtualServer struct {
@@ -122,10 +124,17 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	return vs, nil
 }
 
+type LBResponseWriter struct {
+	http.ResponseWriter
+	code int
+}
+
+func (w *LBResponseWriter) WriteHeader(code int) {
+	w.code = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
 // ServeHTTP dispatch the request between backend servers
-// TODO:
-// 	1. buffer the request, check the response code
-//  2. disable peer if code is 5xx, then retry with another peer
 func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.RLock()
 	defer s.RUnlock()
@@ -162,7 +171,12 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.ReverseProxy[peer] = rp
 		}
 	}
-	rp.ServeHTTP(w, r)
+	rw := LBResponseWriter{w, 200}
+	rp.ServeHTTP(&rw, r)
+	log.Infof("response code: %d", rw.code)
+	if rw.code/100 == 5 {
+		s.Pool.DownPeer(peer)
+	}
 }
 
 func (s *VirtualServer) Run() {
