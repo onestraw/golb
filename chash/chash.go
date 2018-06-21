@@ -17,6 +17,7 @@ type Pool struct {
 	replica      int
 	vNodes       map[uint32]*Peer
 	sortedHashes []uint32
+	nodes        map[string]bool
 }
 
 func New() *Pool {
@@ -24,6 +25,7 @@ func New() *Pool {
 		replica:      20,
 		vNodes:       map[uint32]*Peer{},
 		sortedHashes: []uint32{},
+		nodes:        map[string]bool{},
 	}
 }
 
@@ -41,9 +43,8 @@ func (p *Pool) String() string {
 	p.RLock()
 	defer p.RUnlock()
 	result := []string{}
-	for _, v := range p.sortedHashes {
-		pair := fmt.Sprintf("(%d, %s)", v, p.vNodes[v].addr)
-		result = append(result, pair)
+	for key, _ := range p.nodes {
+		result = append(result, key)
 	}
 	return strings.Join(result, ", ")
 }
@@ -55,9 +56,14 @@ func (p *Pool) Size() int {
 }
 
 func (p *Pool) Add(addr string, args ...interface{}) {
-	peer := &Peer{addr}
 	p.Lock()
 	defer p.Unlock()
+
+	if _, ok := p.nodes[addr]; ok {
+		return
+	}
+	p.nodes[addr] = true
+	peer := &Peer{addr}
 
 	for i := 0; i < p.replica; i++ {
 		h := p.hash(p.vKey(peer.addr, i))
@@ -76,6 +82,10 @@ func (p *Pool) Add(addr string, args ...interface{}) {
 func (p *Pool) Remove(peerAddr string) {
 	p.Lock()
 	defer p.Unlock()
+
+	if _, ok := p.nodes[peerAddr]; !ok {
+		return
+	}
 
 	deleteSortedHashes := func(target uint32) {
 		for idx, val := range p.sortedHashes {
