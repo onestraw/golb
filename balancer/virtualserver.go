@@ -110,16 +110,16 @@ func PoolOpt(method string, peers []config.Server) VirtualServerOption {
 	}
 }
 
-func NewVirtualServer(opts ...VirtualServerOption) *VirtualServer {
+func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	vs := &VirtualServer{
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
 	}
 	for _, opt := range opts {
 		if err := opt(vs); err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
-	return vs
+	return vs, nil
 }
 
 // ServeHTTP dispatch the request between backend servers

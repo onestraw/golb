@@ -24,7 +24,7 @@ func New(configFile string) (*Service, error) {
 
 	ss := make([]*VirtualServer, len(c.VServers))
 	for i, vs := range c.VServers {
-		s := NewVirtualServer(
+		s, err := NewVirtualServer(
 			NameOpt(vs.Name),
 			AddressOpt(vs.Address),
 			ServerNameOpt(vs.ServerName),
@@ -32,6 +32,9 @@ func New(configFile string) (*Service, error) {
 			LBMethodOpt(vs.LBMethod),
 			PoolOpt(vs.LBMethod, vs.Pool),
 		)
+		if err != nil {
+			return nil, err
+		}
 		log.Infof("Listen %s, proto %s, method %s, pool %v", s.Address, s.Protocol, s.LBMethod, s.Pool)
 		ss[i] = s
 	}
