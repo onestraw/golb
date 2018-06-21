@@ -8,6 +8,7 @@
   },
   "virtual_server": [
     {
+      "name": "web",
       "address": "127.0.0.1:8081",
       "server_name": "localhost",
       "pool": [
@@ -24,6 +25,7 @@
       "lb_method": "round-robin"
     },
     {
+      "name": "db",
       "address": "127.0.0.1:8082",
       "pool": [
         {

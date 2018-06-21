@@ -5,10 +5,11 @@ import (
 	"net/http/httputil"
 	"net/url"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/onestraw/golb/chash"
 	"github.com/onestraw/golb/config"
 	"github.com/onestraw/golb/roundrobin"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -27,6 +28,7 @@ type Pooler interface {
 }
 
 type VirtualServer struct {
+	Name         string
 	Address      string
 	ServerName   string
 	Protocol     string
@@ -36,6 +38,13 @@ type VirtualServer struct {
 }
 
 type VirtualServerOption func(*VirtualServer) error
+
+func NameOpt(name string) VirtualServerOption {
+	return func(vs *VirtualServer) error {
+		vs.Name = name
+		return nil
+	}
+}
 
 func AddressOpt(addr string) VirtualServerOption {
 	return func(vs *VirtualServer) error {

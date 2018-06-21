@@ -25,6 +25,7 @@ func New(configFile string) (*Service, error) {
 	ss := make([]*VirtualServer, len(c.VServers))
 	for i, vs := range c.VServers {
 		s := NewVirtualServer(
+			NameOpt(vs.Name),
 			AddressOpt(vs.Address),
 			ServerNameOpt(vs.ServerName),
 			ProtocolOpt(vs.Protocol),
