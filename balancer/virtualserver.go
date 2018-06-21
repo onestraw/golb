@@ -1,11 +1,14 @@
 package balancer
 
 import (
+	"net/http"
 	"net/http/httputil"
+	"net/url"
 
 	"github.com/onestraw/golb/chash"
 	"github.com/onestraw/golb/config"
 	"github.com/onestraw/golb/roundrobin"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -105,4 +108,45 @@ func NewVirtualServer(opts ...VirtualServerOption) *VirtualServer {
 		}
 	}
 	return vs
+}
+
+// ServeHTTP dispatch the request between backend servers
+// TODO:
+// 	1. buffer the request, check the response code
+//  2. disable peer if code is 5xx, then retry with another peer
+func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Host != s.ServerName {
+		log.Errorf("Host not match, host=%s", r.Host)
+		WriteError(w, ErrHostNotMatch)
+		return
+	}
+	// use client's address as hash key if using consistent-hash method
+	peer := s.Pool.Get(r.RemoteAddr)
+	if peer == "" {
+		log.Errorf("Peer not found")
+		WriteError(w, ErrPeerNotFound)
+		return
+	}
+
+	rp, ok := s.ReverseProxy[peer]
+	if !ok {
+		target, err := url.Parse("http://" + peer)
+		if err != nil {
+			log.Errorf("url.Parse peer=%s, error=%v", peer, err)
+			WriteError(w, ErrInternalBalancer)
+			return
+		}
+		log.Infof("%v", target)
+		rp = httputil.NewSingleHostReverseProxy(target)
+		s.ReverseProxy[peer] = rp
+	}
+	rp.ServeHTTP(w, r)
+}
+
+func (s *VirtualServer) Run() {
+	if s.Protocol == PROTO_HTTP {
+		http.ListenAndServe(s.Address, s)
+	} else {
+		panic(ErrNotSupportedProto)
+	}
 }
