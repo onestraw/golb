@@ -12,6 +12,7 @@ type Peer struct {
 	weight           int
 	effective_weight int
 	current_weight   int
+	down             bool
 	sync.RWMutex
 }
 
@@ -28,6 +29,7 @@ func CreatePeer(addr string, weight int) *Peer {
 		weight:           weight,
 		effective_weight: weight,
 		current_weight:   0,
+		down:             false,
 	}
 }
 
@@ -35,6 +37,7 @@ func CreatePeer(addr string, weight int) *Peer {
 type Pool struct {
 	peers   []*Peer
 	current uint64
+	downNum int
 	sync.RWMutex
 }
 
@@ -61,7 +64,49 @@ func (p *Pool) Add(addr string, args ...interface{}) {
 	p.Lock()
 	defer p.Unlock()
 
+	if peer.down {
+		p.downNum += 1
+	}
 	p.peers = append(p.peers, peer)
+}
+
+func (p *Pool) indexOfPeer(addr string) int {
+	for i, peer := range p.peers {
+		if peer.addr == addr {
+			return i
+		}
+	}
+	return -1
+}
+
+func (p *Pool) setPeerStatus(addr string, isDown bool) {
+	p.RLock()
+	idx := p.indexOfPeer(addr)
+	p.RUnlock()
+	if idx >= 0 && idx < p.Size() {
+		peer := p.peers[idx]
+		if peer.down != isDown {
+			p.Lock()
+			if isDown {
+				p.downNum += 1
+			} else {
+				p.downNum -= 1
+			}
+			p.Unlock()
+
+			peer.Lock()
+			peer.down = isDown
+			peer.Unlock()
+		}
+	}
+}
+
+func (p *Pool) DownPeer(addr string) {
+	p.setPeerStatus(addr, true)
+}
+
+func (p *Pool) UpPeer(addr string) {
+	p.setPeerStatus(addr, false)
 }
 
 func (p *Pool) Remove(addr string) {
@@ -71,17 +116,11 @@ func (p *Pool) Remove(addr string) {
 	p.Lock()
 	defer p.Unlock()
 
-	indexOfPeer := func() int {
-		for i, peer := range p.peers {
-			if peer.addr == addr {
-				return i
-			}
-		}
-		return -1
-	}
-
-	idx := indexOfPeer()
+	idx := p.indexOfPeer(addr)
 	if idx >= 0 && idx < p.Size() {
+		if p.peers[idx].down {
+			p.downNum -= 1
+		}
 		p.peers = append(p.peers[:idx], p.peers[idx+1:]...)
 	}
 }
@@ -94,6 +133,9 @@ func (p *Pool) Get(args ...interface{}) string {
 	var best *Peer = nil
 	total := 0
 	for _, peer := range p.peers {
+		if peer.down {
+			continue
+		}
 		peer.Lock()
 
 		total += peer.effective_weight
@@ -125,22 +167,27 @@ func (p *Pool) EqualGet() string {
 	if p.Size() <= 0 {
 		return ""
 	}
+	if p.downNum >= p.Size() {
+		return ""
+	}
 
 	old := atomic.AddUint64(&p.current, 1) - 1
 	idx := old % uint64(p.Size())
 
-	return p.peers[idx].addr
+	peer := p.peers[idx]
+	if !peer.down {
+		return peer.addr
+	}
+	return p.EqualGet()
 }
 
 func CreatePool(pairs map[string]int) *Pool {
-	peers := make([]*Peer, len(pairs))
-	i := 0
-	for addr, weight := range pairs {
-		peers[i] = CreatePeer(addr, weight)
-		i += 1
-	}
-	return &Pool{
-		peers:   peers,
+	pool := &Pool{
 		current: 0,
+		downNum: 0,
 	}
+	for addr, weight := range pairs {
+		pool.Add(addr, weight)
+	}
+	return pool
 }
