@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 
@@ -28,12 +29,14 @@ type Pooler interface {
 }
 
 type VirtualServer struct {
+	sync.RWMutex
 	Name         string
 	Address      string
 	ServerName   string
 	Protocol     string
 	LBMethod     string
 	Pool         Pooler
+	rp_lock      sync.RWMutex
 	ReverseProxy map[string]*httputil.ReverseProxy
 }
 
@@ -124,6 +127,9 @@ func NewVirtualServer(opts ...VirtualServerOption) *VirtualServer {
 // 	1. buffer the request, check the response code
 //  2. disable peer if code is 5xx, then retry with another peer
 func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.RLock()
+	defer s.RUnlock()
+
 	if r.Host != s.ServerName {
 		log.Errorf("Host not match, host=%s", r.Host)
 		WriteError(w, ErrHostNotMatch)
@@ -137,7 +143,9 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.rp_lock.RLock()
 	rp, ok := s.ReverseProxy[peer]
+	s.rp_lock.RUnlock()
 	if !ok {
 		target, err := url.Parse("http://" + peer)
 		if err != nil {
@@ -146,8 +154,13 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Infof("%v", target)
-		rp = httputil.NewSingleHostReverseProxy(target)
-		s.ReverseProxy[peer] = rp
+		s.rp_lock.Lock()
+		defer s.rp_lock.Unlock()
+		// double check to avoid that the proxy is created while applying the lock
+		if rp, ok = s.ReverseProxy[peer]; !ok {
+			rp = httputil.NewSingleHostReverseProxy(target)
+			s.ReverseProxy[peer] = rp
+		}
 	}
 	rp.ServeHTTP(w, r)
 }
