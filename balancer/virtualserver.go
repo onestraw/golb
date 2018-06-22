@@ -56,6 +56,8 @@ type VirtualServer struct {
 
 	ReverseProxy map[string]*httputil.ReverseProxy
 	rp_lock      sync.RWMutex
+
+	stats *Stats
 }
 
 type VirtualServerOption func(*VirtualServer) error
@@ -135,6 +137,7 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 		fails:        make(map[string]int),
 		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
+		stats:        NewStats(),
 	}
 	for _, opt := range opts {
 		if err := opt(vs); err != nil {
@@ -206,6 +209,7 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rw := LBResponseWriter{w, 200}
 	rp.ServeHTTP(&rw, r)
 
+	s.stats.Inc(peer, rw.code)
 	log.Infof("response code: %d", rw.code)
 	if rw.code/100 == 5 {
 		s.pool_lock.Lock()
@@ -224,7 +228,7 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *VirtualServer) Run() {
 	if s.Protocol == PROTO_HTTP {
-		http.ListenAndServe(s.Address, s)
+		panic(http.ListenAndServe(s.Address, s))
 	} else {
 		panic(ErrNotSupportedProto)
 	}

@@ -1,8 +1,10 @@
 package balancer
 
 import (
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -46,10 +48,14 @@ type StatsHandler struct {
 }
 
 func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for i, vs := range h.service.VServers {
-		log.Infof("/stats pool-%d: %v", i, vs.Pool)
+	result := []string{}
+	for _, vs := range h.service.VServers {
+		s := fmt.Sprintf("pool-%s:\n%s", vs.Name, vs.stats)
+		log.Infof(s)
+		result = append(result, s)
 	}
-	io.WriteString(w, "Hello, world!\n")
+	result = append(result, "\n")
+	io.WriteString(w, strings.Join(result, "\n"))
 }
 
 type VirtualServerHandler struct {
