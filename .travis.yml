@@ -6,6 +6,7 @@ env:
 before_install:
   - go get github.com/mattn/goveralls
   - go get github.com/modocache/gover
+  - go get github.com/sirupsen/logrus
 
 script:
   - go test -race -v ./...
