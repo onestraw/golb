@@ -5,3 +5,6 @@ test:
 
 test-verbose:
 	go test -v $(TESTFLAG) $(PKGS)
+
+build:
+	go install github.com/onestraw/golb/cmd/golb/
