@@ -7,6 +7,8 @@ before_install:
   - go get github.com/mattn/goveralls
   - go get github.com/modocache/gover
   - go get github.com/sirupsen/logrus
+  - go get github.com/gorilla/mux
+
 
 script:
   - go test -race -v ./...
