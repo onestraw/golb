@@ -56,7 +56,7 @@ func (s *Service) Run() error {
 	go s.Controller.Run(s)
 
 	for _, vs := range s.VServers {
-		go vs.Run()
+		vs.Run()
 	}
 
 	sig := <-sigC

@@ -6,13 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 )
-
-type Authentication struct {
-	Username string
-	Password string
-}
 
 type Controller struct {
 	Address string
@@ -20,27 +16,10 @@ type Controller struct {
 }
 
 func (c *Controller) Run(service *Service) {
-	mux := http.NewServeMux()
-	mux.Handle("/stats", &StatsHandler{service})
-	mux.Handle("/virtualserver", &VirtualServerHandler{service})
-	http.ListenAndServe(c.Address, AuthMiddleware(c.Auth)(mux))
-}
-
-func AuthMiddleware(auth *Authentication) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			username := r.Header.Get("Username")
-			password := r.Header.Get("Password")
-			if username == auth.Username && password == auth.Password {
-				next.ServeHTTP(w, r)
-			} else {
-				log.Errorf("Unauthorized <%s, %s> from %s", username, password, r.RemoteAddr)
-				WriteError(w, ErrUnauthorized)
-				return
-			}
-		}
-		return http.HandlerFunc(fn)
-	}
+	r := mux.NewRouter()
+	r.Handle("/stats", &StatsHandler{service}).Methods("GET")
+	r.Handle("/vs/{name}/{action}", ModifyVirtualServerStatus(service)).Methods("POST")
+	panic(http.ListenAndServe(c.Address, AuthMiddleware(c.Auth)(r)))
 }
 
 type StatsHandler struct {
@@ -58,10 +37,39 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, strings.Join(result, "\n"))
 }
 
-type VirtualServerHandler struct {
-	service *Service
-}
-
-func (h *VirtualServerHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "Hello, world!\n")
+func ModifyVirtualServerStatus(s *Service) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		name := vars["name"]
+		action := vars["action"]
+		log.Infof("virtual server name %s, action %s", name, action)
+		msg := "success"
+		var i int
+		for i = 0; i < len(s.VServers); i++ {
+			if s.VServers[i].Name == name {
+				break
+			}
+		}
+		if i < len(s.VServers) {
+			vs := s.VServers[i]
+			if action == "enable" {
+				if vs.Status() == STATUS_ENABLED {
+					msg = fmt.Sprintf("%s is already enabled", vs.Name)
+				} else {
+					vs.Run()
+				}
+			} else if action == "disable" {
+				if vs.Status() == STATUS_DISABLED {
+					msg = fmt.Sprintf("%s is already disabled", vs.Name)
+				} else {
+					vs.Stop()
+				}
+			} else {
+				msg = "unknown action"
+			}
+		} else {
+			msg = fmt.Sprintf("Virtual server [%s] not found", name)
+		}
+		io.WriteString(w, msg)
+	})
 }

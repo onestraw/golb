@@ -19,6 +19,8 @@ const (
 	LB_COSISTENTHASH = "consistent-hash"
 	PROTO_HTTP       = "http"
 	PROTO_GRPC       = "grpc"
+	STATUS_ENABLED   = "running"
+	STATUS_DISABLED  = "stopped"
 
 	DEFAULT_FAILTIMEOUT = 7
 	DEFAULT_MAXFAILS    = 2
@@ -58,6 +60,9 @@ type VirtualServer struct {
 	rp_lock      sync.RWMutex
 
 	stats *Stats
+
+	server *http.Server
+	status string
 }
 
 type VirtualServerOption func(*VirtualServer) error
@@ -226,10 +231,38 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *VirtualServer) statusSwitch(status string) {
+	s.Lock()
+	defer s.Unlock()
+	s.status = status
+}
+
+func (s *VirtualServer) Status() string {
+	s.RLock()
+	defer s.RUnlock()
+	return s.status
+}
+
 func (s *VirtualServer) Run() {
 	if s.Protocol == PROTO_HTTP {
-		panic(http.ListenAndServe(s.Address, s))
+		s.server = &http.Server{Addr: s.Address, Handler: s}
 	} else {
 		panic(ErrNotSupportedProto)
+	}
+
+	go func() {
+		s.statusSwitch(STATUS_ENABLED)
+		err := s.server.ListenAndServe()
+		if err != nil {
+			log.Errorf("%s ListenAndServe error=%v", s.Name, err)
+		}
+		s.statusSwitch(STATUS_DISABLED)
+	}()
+}
+
+func (s *VirtualServer) Stop() {
+	err := s.server.Shutdown(nil)
+	if err != nil {
+		log.Errorf("%s Shutdown error=%v", s.Name, err)
 	}
 }
