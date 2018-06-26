@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/onestraw/golb/config"
 )
 
 type Controller struct {
@@ -19,6 +22,7 @@ func (c *Controller) Run(service *Service) {
 	r := mux.NewRouter()
 	r.Handle("/stats", &StatsHandler{service}).Methods("GET")
 	r.Handle("/vs/{name}/{action}", ModifyVirtualServerStatus(service)).Methods("POST")
+	r.Handle("/vs", AddVirtualServer(service)).Methods("POST")
 	panic(http.ListenAndServe(c.Address, AuthMiddleware(c.Auth)(r)))
 }
 
@@ -44,32 +48,54 @@ func ModifyVirtualServerStatus(s *Service) http.Handler {
 		action := vars["action"]
 		log.Infof("virtual server name %s, action %s", name, action)
 		msg := "success"
-		var i int
-		for i = 0; i < len(s.VServers); i++ {
-			if s.VServers[i].Name == name {
-				break
-			}
+
+		vs, err := s.FindVirtualServer(name)
+		if err != nil {
+			log.Errorf("FindVirtualServ err=%v", err)
+			WriteError(w, ErrBadRequest)
+			return
 		}
-		if i < len(s.VServers) {
-			vs := s.VServers[i]
-			if action == "enable" {
-				if vs.Status() == STATUS_ENABLED {
-					msg = fmt.Sprintf("%s is already enabled", vs.Name)
-				} else {
-					vs.Run()
-				}
-			} else if action == "disable" {
-				if vs.Status() == STATUS_DISABLED {
-					msg = fmt.Sprintf("%s is already disabled", vs.Name)
-				} else {
-					vs.Stop()
-				}
+
+		if action == "enable" {
+			if vs.Status() == STATUS_ENABLED {
+				msg = fmt.Sprintf("%s is already enabled", vs.Name)
 			} else {
-				msg = "unknown action"
+				vs.Run()
+			}
+		} else if action == "disable" {
+			if vs.Status() == STATUS_DISABLED {
+				msg = fmt.Sprintf("%s is already disabled", vs.Name)
+			} else {
+				vs.Stop()
 			}
 		} else {
-			msg = fmt.Sprintf("Virtual server [%s] not found", name)
+			msg = "unknown action"
 		}
+
 		io.WriteString(w, msg)
+	})
+}
+
+func AddVirtualServer(s *Service) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var vs config.VirtualServer
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&vs)
+		if err != nil {
+			log.Errorf("Decode request err=%v", err)
+			WriteError(w, ErrBadRequest)
+			return
+		}
+
+		log.Infof("VirtualServer %v", vs)
+		err = s.AddVirtualServer(&vs)
+		if err != nil {
+			log.Errorf("AddVirtualServ err=%v", err)
+			resp := BalancerError{http.StatusBadRequest, err.Error()}
+			WriteError(w, resp)
+			return
+		}
+
+		io.WriteString(w, "Add success")
 	})
 }

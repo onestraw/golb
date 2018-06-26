@@ -69,6 +69,9 @@ type VirtualServerOption func(*VirtualServer) error
 
 func NameOpt(name string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
+		if name == "" {
+			return ErrVirtualServerNameEmpty
+		}
 		vs.Name = name
 		return nil
 	}
@@ -76,6 +79,9 @@ func NameOpt(name string) VirtualServerOption {
 
 func AddressOpt(addr string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
+		if addr == "" {
+			return ErrVirtualServerAddressEmpty
+		}
 		vs.Address = addr
 		return nil
 	}
@@ -103,6 +109,9 @@ func ProtocolOpt(proto string) VirtualServerOption {
 
 func LBMethodOpt(method string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
+		if method == "" {
+			method = LB_ROUNDROBIN
+		}
 		if method != LB_ROUNDROBIN && method != LB_COSISTENTHASH {
 			return ErrNotSupportedMethod
 		}
