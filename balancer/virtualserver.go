@@ -240,6 +240,25 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *VirtualServer) AddPeer(addr string, args ...interface{}) {
+	s.Pool.Add(addr, args...)
+}
+
+func (s *VirtualServer) RemovePeer(addr string) {
+	s.pool_lock.Lock()
+	delete(s.fails, addr)
+	delete(s.timeout, addr)
+	s.pool_lock.Unlock()
+
+	s.rp_lock.Lock()
+	delete(s.ReverseProxy, addr)
+	s.rp_lock.Unlock()
+
+	s.stats.Remove(addr)
+
+	s.Pool.Remove(addr)
+}
+
 func (s *VirtualServer) statusSwitch(status string) {
 	s.Lock()
 	defer s.Unlock()
