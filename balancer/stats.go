@@ -45,3 +45,9 @@ func (s *Stats) String() string {
 
 	return strings.Join(result, "\n")
 }
+
+func (s *Stats) Remove(key string) {
+	s.Lock()
+	defer s.Unlock()
+	delete(s.StatusCode, key)
+}
