@@ -1,7 +1,9 @@
 package balancer
 
 import (
+	"encoding/base64"
 	"net/http"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -12,18 +14,30 @@ type Authentication struct {
 }
 
 func AuthMiddleware(auth *Authentication) func(http.Handler) http.Handler {
+	validate := func(username, password string) bool {
+		if username == auth.Username && password == auth.Password {
+			return true
+		}
+		return false
+	}
+
 	return func(next http.Handler) http.Handler {
-		fn := func(w http.ResponseWriter, r *http.Request) {
-			username := r.Header.Get("Username")
-			password := r.Header.Get("Password")
-			if username == auth.Username && password == auth.Password {
-				next.ServeHTTP(w, r)
-			} else {
-				log.Errorf("Unauthorized <%s, %s> from %s", username, password, r.RemoteAddr)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			auth := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
+			if len(auth) != 2 || auth[0] != "Basic" {
 				WriteError(w, ErrUnauthorized)
 				return
 			}
-		}
-		return http.HandlerFunc(fn)
+
+			payload, _ := base64.StdEncoding.DecodeString(auth[1])
+			pair := strings.SplitN(string(payload), ":", 2)
+			if len(pair) != 2 || !validate(pair[0], pair[1]) {
+				log.Errorf("Unauthorized %v from %s", pair, r.RemoteAddr)
+				WriteError(w, ErrUnauthorized)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
 	}
 }
