@@ -52,12 +52,14 @@ func (p *Pool) Size() int {
 }
 
 func (p *Pool) Add(addr string, args ...interface{}) {
-	if addr == "" || len(args) == 0 {
+	if addr == "" {
 		return
 	}
-	weight, ok := args[0].(int)
-	if !ok {
-		return
+	weight := 1
+	if len(args) > 0 {
+		if w, ok := args[0].(int); ok {
+			weight = w
+		}
 	}
 	peer := CreatePeer(addr, weight)
 
