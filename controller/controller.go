@@ -1,4 +1,4 @@
-package balancer
+package controller
 
 import (
 	"encoding/json"
@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/onestraw/golb/balancer"
 	"github.com/onestraw/golb/config"
 )
 
@@ -18,26 +19,37 @@ type Controller struct {
 	Auth    *Authentication
 }
 
-func (c *Controller) Run(service *Service) {
+func New(ctlCfg *config.Controller) *Controller {
+	return &Controller{
+		Address: ctlCfg.Address,
+		Auth:    &Authentication{ctlCfg.Auth.Username, ctlCfg.Auth.Password},
+	}
+}
+
+func (c *Controller) Run(balancer *balancer.Balancer) {
 	r := mux.NewRouter()
-	r.Handle("/stats", &StatsHandler{service}).Methods("GET")
-	r.Handle("/vs", AddVirtualServer(service)).Methods("POST")
-	r.Handle("/vs", ListAllVirtualServer(service)).Methods("GET")
-	r.Handle("/vs/{name}", ModifyVirtualServerStatus(service)).Methods("POST")
-	r.Handle("/vs/{name}", ListVirtualServer(service)).Methods("GET")
-	r.Handle("/vs/{name}/pool", AddPoolMember(service)).Methods("POST")
-	r.Handle("/vs/{name}/pool", DeletePoolMember(service)).Methods("DELETE")
-	panic(http.ListenAndServe(c.Address, BasicAuth(c.Auth)(r)))
+	r.Handle("/stats", &StatsHandler{balancer}).Methods("GET")
+	r.Handle("/vs", AddVirtualServer(balancer)).Methods("POST")
+	r.Handle("/vs", ListAllVirtualServer(balancer)).Methods("GET")
+	r.Handle("/vs/{name}", ModifyVirtualServerStatus(balancer)).Methods("POST")
+	r.Handle("/vs/{name}", ListVirtualServer(balancer)).Methods("GET")
+	r.Handle("/vs/{name}/pool", AddPoolMember(balancer)).Methods("POST")
+	r.Handle("/vs/{name}/pool", DeletePoolMember(balancer)).Methods("DELETE")
+	go func() {
+		if err := http.ListenAndServe(c.Address, BasicAuth(c.Auth)(r)); err != nil {
+			panic(err)
+		}
+	}()
 }
 
 type StatsHandler struct {
-	service *Service
+	balancer *balancer.Balancer
 }
 
 func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result := []string{}
-	for _, vs := range h.service.VServers {
-		s := fmt.Sprintf("pool-%s:\n%s", vs.Name, vs.stats)
+	for _, vs := range h.balancer.VServers {
+		s := fmt.Sprintf("pool-%s:\n%s", vs.Name, vs.Stats)
 		log.Infof(s)
 		result = append(result, s)
 	}
@@ -45,9 +57,9 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, strings.Join(result, "\n"))
 }
 
-func ListAllVirtualServer(s *Service) http.Handler {
+func ListAllVirtualServer(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, vs := range s.VServers {
+		for _, vs := range b.VServers {
 			data := fmt.Sprintf("Name:%s, Address:%s, Status:%s, Pool:\n%s\n\n",
 				vs.Name, vs.Address, vs.Status(), vs.Pool)
 			io.WriteString(w, data)
@@ -55,11 +67,11 @@ func ListAllVirtualServer(s *Service) http.Handler {
 	})
 }
 
-func ListVirtualServer(s *Service) http.Handler {
+func ListVirtualServer(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]
-		vs, err := s.FindVirtualServer(name)
+		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServ err=%v", err)
 			WriteBadRequest(w, err)
@@ -74,7 +86,7 @@ type ModifyVirtualServer struct {
 	Action string `json:"action"`
 }
 
-func ModifyVirtualServerStatus(s *Service) http.Handler {
+func ModifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]
@@ -89,7 +101,7 @@ func ModifyVirtualServerStatus(s *Service) http.Handler {
 		log.Infof("virtual server name %s, action %s", name, action)
 		msg := "success"
 
-		vs, err := s.FindVirtualServer(name)
+		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServ err=%v", err)
 			WriteBadRequest(w, err)
@@ -97,16 +109,12 @@ func ModifyVirtualServerStatus(s *Service) http.Handler {
 		}
 
 		if action == "enable" {
-			if vs.Status() == STATUS_ENABLED {
-				msg = fmt.Sprintf("%s is already enabled", vs.Name)
-			} else {
-				vs.Run()
+			if err := vs.Run(); err != nil {
+				msg = err.Error()
 			}
 		} else if action == "disable" {
-			if vs.Status() == STATUS_DISABLED {
-				msg = fmt.Sprintf("%s is already disabled", vs.Name)
-			} else {
-				vs.Stop()
+			if err := vs.Stop(); err != nil {
+				msg = err.Error()
 			}
 		} else {
 			msg = "unknown action"
@@ -116,7 +124,7 @@ func ModifyVirtualServerStatus(s *Service) http.Handler {
 	})
 }
 
-func AddVirtualServer(s *Service) http.Handler {
+func AddVirtualServer(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var vs config.VirtualServer
 		decoder := json.NewDecoder(r.Body)
@@ -128,7 +136,7 @@ func AddVirtualServer(s *Service) http.Handler {
 		}
 
 		log.Infof("VirtualServer %v", vs)
-		err = s.AddVirtualServer(&vs)
+		err = b.AddVirtualServer(&vs)
 		if err != nil {
 			log.Errorf("AddVirtualServ err=%v", err)
 			WriteBadRequest(w, err)
@@ -150,11 +158,11 @@ func decodeServer(r *http.Request) (*config.Server, error) {
 	return &server, nil
 }
 
-func AddPoolMember(s *Service) http.Handler {
+func AddPoolMember(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]
-		vs, err := s.FindVirtualServer(name)
+		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServ err=%v", err)
 			WriteBadRequest(w, err)
@@ -176,11 +184,11 @@ func AddPoolMember(s *Service) http.Handler {
 	})
 }
 
-func DeletePoolMember(s *Service) http.Handler {
+func DeletePoolMember(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]
-		vs, err := s.FindVirtualServer(name)
+		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServ err=%v", err)
 			WriteBadRequest(w, err)

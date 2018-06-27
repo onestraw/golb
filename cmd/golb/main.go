@@ -3,17 +3,19 @@ package main
 import (
 	"flag"
 
-	"github.com/onestraw/golb/balancer"
+	"github.com/onestraw/golb/service"
 )
 
 func main() {
 	var flagConfig = flag.String("config", "golb.json", "json configuration file")
 	flag.Parse()
 
-	s, err := balancer.New(*flagConfig)
+	s, err := service.New(*flagConfig)
 	if err != nil {
 		panic(err)
 	}
 
-	s.Run()
+	if err := s.Run(); err != nil {
+		panic(err)
+	}
 }

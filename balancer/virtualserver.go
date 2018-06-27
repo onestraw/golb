@@ -1,6 +1,7 @@
 package balancer
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -60,7 +61,7 @@ type VirtualServer struct {
 	ReverseProxy map[string]*httputil.ReverseProxy
 	rp_lock      sync.RWMutex
 
-	stats *stats.Stats
+	Stats *stats.Stats
 
 	server *http.Server
 	status string
@@ -152,7 +153,7 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 		fails:        make(map[string]int),
 		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
-		stats:        stats.New(),
+		Stats:        stats.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(vs); err != nil {
@@ -224,7 +225,7 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rw := LBResponseWriter{w, 200}
 	rp.ServeHTTP(&rw, r)
 
-	s.stats.Inc(peer, rw.code)
+	s.Stats.Inc(peer, rw.code)
 	log.Infof("response code: %d", rw.code)
 	if rw.code/100 == 5 {
 		s.pool_lock.Lock()
@@ -255,7 +256,7 @@ func (s *VirtualServer) RemovePeer(addr string) {
 	delete(s.ReverseProxy, addr)
 	s.rp_lock.Unlock()
 
-	s.stats.Remove(addr)
+	s.Stats.Remove(addr)
 
 	s.Pool.Remove(addr)
 }
@@ -272,11 +273,15 @@ func (s *VirtualServer) Status() string {
 	return s.status
 }
 
-func (s *VirtualServer) Run() {
+func (s *VirtualServer) Run() error {
+	if s.Status() == STATUS_ENABLED {
+		return fmt.Errorf("%s is already enabled", s.Name)
+	}
+
 	if s.Protocol == PROTO_HTTP {
 		s.server = &http.Server{Addr: s.Address, Handler: s}
 	} else {
-		panic(ErrNotSupportedProto)
+		return ErrNotSupportedProto
 	}
 
 	go func() {
@@ -287,11 +292,18 @@ func (s *VirtualServer) Run() {
 		}
 		s.statusSwitch(STATUS_DISABLED)
 	}()
+
+	return nil
 }
 
-func (s *VirtualServer) Stop() {
+func (s *VirtualServer) Stop() error {
+	if s.Status() == STATUS_DISABLED {
+		return fmt.Errorf("%s is already disabled", s.Name)
+	}
+
 	err := s.server.Shutdown(nil)
 	if err != nil {
-		log.Errorf("%s Shutdown error=%v", s.Name, err)
+		return fmt.Errorf("%s Shutdown error=%v", s.Name, err)
 	}
+	return nil
 }

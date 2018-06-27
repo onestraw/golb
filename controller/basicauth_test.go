@@ -1,4 +1,4 @@
-package balancer
+package controller
 
 import (
 	"net/http"

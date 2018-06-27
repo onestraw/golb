@@ -22,7 +22,6 @@ type BalancerError struct {
 
 var (
 	ErrBadRequest       = BalancerError{http.StatusBadRequest, "Reqeust Error"}
-	ErrUnauthorized     = BalancerError{http.StatusUnauthorized, "Unauthorized"}
 	ErrHostNotMatch     = BalancerError{http.StatusBadGateway, "Host Not Match"}
 	ErrPeerNotFound     = BalancerError{http.StatusBadGateway, "Peer Not Found"}
 	ErrInternalBalancer = BalancerError{http.StatusInternalServerError, "Balancer Internal Error"}
@@ -31,8 +30,4 @@ var (
 func WriteError(w http.ResponseWriter, err BalancerError) {
 	w.WriteHeader(err.StatusCode)
 	w.Write([]byte(err.ErrMsg))
-}
-
-func WriteBadRequest(w http.ResponseWriter, err error) {
-	WriteError(w, BalancerError{http.StatusBadRequest, err.Error()})
 }

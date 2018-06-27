@@ -1,4 +1,4 @@
-// package balancer provides service of dispatching requests between server pool
+// package controller provides REST API to configure balancer
 //
 // controller API
 //
@@ -37,4 +37,4 @@
 //	Body: {"address":"127.0.0.1:10002"}
 //	Example: curl -XDELETE -u admin:admin -H 'content-type: application/json' -d '{"address":"127.0.0.1:10002"}' http://127.0.0.1:6587/vs/web/pool
 //
-package balancer
+package controller

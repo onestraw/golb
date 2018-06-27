@@ -1,48 +1,32 @@
 package balancer
 
 import (
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/onestraw/golb/config"
 )
 
-type Service struct {
+type Balancer struct {
 	sync.RWMutex
-	Controller *Controller
-	VServers   []*VirtualServer
+	VServers []*VirtualServer
 }
 
-func New(configFile string) (*Service, error) {
-	c := &config.Configuration{}
-	err := c.Load(configFile)
-	if err != nil {
-		return nil, err
+func New(vss []config.VirtualServer) (*Balancer, error) {
+	b := &Balancer{
+		VServers: []*VirtualServer{},
 	}
-
-	ctlCfg := c.Controller
-	ctl := &Controller{
-		Address: ctlCfg.Address,
-		Auth:    &Authentication{ctlCfg.Auth.Username, ctlCfg.Auth.Password},
-	}
-	s := &Service{
-		VServers:   []*VirtualServer{},
-		Controller: ctl,
-	}
-	for _, vs := range c.VServers {
-		if err := s.AddVirtualServer(&vs); err != nil {
-			return s, err
+	for _, vs := range vss {
+		if err := b.AddVirtualServer(&vs); err != nil {
+			return b, err
 		}
 	}
 
-	return s, nil
+	return b, nil
 }
 
-func (s *Service) AddVirtualServer(vs *config.VirtualServer) error {
+func (b *Balancer) AddVirtualServer(vs *config.VirtualServer) error {
 	new_vs, err := NewVirtualServer(
 		NameOpt(vs.Name),
 		AddressOpt(vs.Address),
@@ -57,9 +41,9 @@ func (s *Service) AddVirtualServer(vs *config.VirtualServer) error {
 	log.Infof("Listen %s, proto %s, method %s, pool %v",
 		new_vs.Address, new_vs.Protocol, new_vs.LBMethod, new_vs.Pool)
 
-	s.Lock()
-	defer s.Unlock()
-	for _, v := range s.VServers {
+	b.Lock()
+	defer b.Unlock()
+	for _, v := range b.VServers {
 		if v.Name == new_vs.Name {
 			return ErrVirtualServerNameExisted
 		}
@@ -67,15 +51,15 @@ func (s *Service) AddVirtualServer(vs *config.VirtualServer) error {
 			return ErrVirtualServerAddressExisted
 		}
 	}
-	s.VServers = append(s.VServers, new_vs)
+	b.VServers = append(b.VServers, new_vs)
 
 	return nil
 }
 
-func (s *Service) FindVirtualServer(name string) (*VirtualServer, error) {
-	s.RLock()
-	defer s.RUnlock()
-	for _, v := range s.VServers {
+func (b *Balancer) FindVirtualServer(name string) (*VirtualServer, error) {
+	b.RLock()
+	defer b.RUnlock()
+	for _, v := range b.VServers {
 		if v.Name == name {
 			return v, nil
 		}
@@ -83,18 +67,20 @@ func (s *Service) FindVirtualServer(name string) (*VirtualServer, error) {
 	return nil, ErrVirtualServerNotFound
 }
 
-func (s *Service) Run() error {
-	log.Infof("Starting...")
-	sigC := make(chan os.Signal)
-	signal.Notify(sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
-
-	go s.Controller.Run(s)
-
-	for _, vs := range s.VServers {
-		vs.Run()
+func (b *Balancer) Run() error {
+	for _, vs := range b.VServers {
+		if err := vs.Run(); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	sig := <-sigC
-	log.Infof("Caught signal %v, exiting...", sig)
+func (b *Balancer) Stop() error {
+	for _, vs := range b.VServers {
+		if err := vs.Stop(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
