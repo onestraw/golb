@@ -1,4 +1,4 @@
-package balancer
+package stats
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ type Stats struct {
 	StatusCode map[string]map[int]uint64
 }
 
-func NewStats() *Stats {
+func New() *Stats {
 	return &Stats{
 		StatusCode: map[string]map[int]uint64{},
 	}

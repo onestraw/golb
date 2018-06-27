@@ -12,6 +12,7 @@ import (
 	"github.com/onestraw/golb/chash"
 	"github.com/onestraw/golb/config"
 	"github.com/onestraw/golb/roundrobin"
+	"github.com/onestraw/golb/stats"
 )
 
 const (
@@ -59,7 +60,7 @@ type VirtualServer struct {
 	ReverseProxy map[string]*httputil.ReverseProxy
 	rp_lock      sync.RWMutex
 
-	stats *Stats
+	stats *stats.Stats
 
 	server *http.Server
 	status string
@@ -151,7 +152,7 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 		fails:        make(map[string]int),
 		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
-		stats:        NewStats(),
+		stats:        stats.New(),
 	}
 	for _, opt := range opts {
 		if err := opt(vs); err != nil {
