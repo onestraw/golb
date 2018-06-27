@@ -27,7 +27,7 @@ func (c *Controller) Run(service *Service) {
 	r.Handle("/vs/{name}", ListVirtualServer(service)).Methods("GET")
 	r.Handle("/vs/{name}/pool", AddPoolMember(service)).Methods("POST")
 	r.Handle("/vs/{name}/pool", DeletePoolMember(service)).Methods("DELETE")
-	panic(http.ListenAndServe(c.Address, AuthMiddleware(c.Auth)(r)))
+	panic(http.ListenAndServe(c.Address, BasicAuth(c.Auth)(r)))
 }
 
 type StatsHandler struct {
