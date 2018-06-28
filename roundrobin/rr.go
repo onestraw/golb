@@ -2,6 +2,7 @@ package roundrobin
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -49,6 +50,7 @@ func (p *Pool) String() string {
 	for _, peer := range p.peers {
 		result = append(result, peer.addr)
 	}
+	sort.Strings(result)
 	return strings.Join(result, ", ")
 }
 

@@ -50,6 +50,7 @@ func (p *Pool) String() string {
 	for key, _ := range p.nodes {
 		result = append(result, key)
 	}
+	sort.Strings(result)
 	return strings.Join(result, ", ")
 }
 
