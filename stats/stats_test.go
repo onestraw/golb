@@ -18,7 +18,7 @@ func TestString(t *testing.T) {
 	s.Inc("web", 200)
 	s.Inc("web", 400)
 	s.Inc("db", 500)
-	expect := "web, 200:2, 400:1\ndb, 500:1"
+	expect := "db, 500:1\nweb, 200:2, 400:1"
 	ret := s.String()
 	if ret != expect {
 		t.Errorf("expect %s, but got %s", expect, ret)

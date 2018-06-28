@@ -2,6 +2,7 @@ package stats
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 )
@@ -33,12 +34,21 @@ func (s *Stats) String() string {
 	s.RLock()
 	defer s.RUnlock()
 
+	keys := []string{}
+	for key, _ := range s.StatusCode {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
 	result := []string{}
-	for addr, peer := range s.StatusCode {
-		row := []string{addr}
+	for _, addr := range keys {
+		peer := s.StatusCode[addr]
+		row := []string{}
 		for code, count := range peer {
 			row = append(row, fmt.Sprintf("%d:%d", code, count))
 		}
+		sort.Strings(row)
+		row = append([]string{addr}, row...)
 		result = append(result, strings.Join(row, ", "))
 	}
 
