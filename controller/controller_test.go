@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -117,6 +118,7 @@ func TestModifyVirtualServerStatus(t *testing.T) {
 	expect := "success"
 	t.Logf("Before enable: %s", b.VServers[0].Status())
 	testCtrlSuit(t, h, req, 200, expect)
+	time.Sleep(2 * time.Second)
 	t.Logf("After enable: %s", b.VServers[0].Status())
 
 	// repeat enable
@@ -125,6 +127,8 @@ func TestModifyVirtualServerStatus(t *testing.T) {
 		"name": "web",
 	})
 	testCtrlSuit(t, h, req, 200, "web is already enabled")
+
+	time.Sleep(2 * time.Second)
 
 	// disalbe
 	body, _ = json.Marshal(map[string]string{"action": "disable"})
