@@ -5,34 +5,33 @@ import (
 	"os/signal"
 	"syscall"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/onestraw/golb/balancer"
 	"github.com/onestraw/golb/config"
 	"github.com/onestraw/golb/controller"
-	log "github.com/sirupsen/logrus"
 )
 
 type Service struct {
-	Controller *controller.Controller
-	Balancer   *balancer.Balancer
+	controller *controller.Controller
+	balancer   *balancer.Balancer
 }
 
 func New(configFile string) (*Service, error) {
 	c := &config.Configuration{}
-	err := c.Load(configFile)
-	if err != nil {
+	if err := c.Load(configFile); err != nil {
 		return nil, err
 	}
 
+	ctl := controller.New(&c.Controller)
 	b, err := balancer.New(c.VServers)
 	if err != nil {
 		return nil, err
 	}
 
-	ctl := controller.New(&c.Controller)
-
 	return &Service{
-		Balancer:   b,
-		Controller: ctl,
+		controller: ctl,
+		balancer:   b,
 	}, nil
 }
 
@@ -41,13 +40,13 @@ func (s *Service) Run() error {
 	sigC := make(chan os.Signal)
 	signal.Notify(sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-	s.Controller.Run(s.Balancer)
-	if err := s.Balancer.Run(); err != nil {
+	s.controller.Run(s.balancer)
+	if err := s.balancer.Run(); err != nil {
 		return err
 	}
 
 	sig := <-sigC
 	log.Infof("Caught signal %v, exiting...", sig)
 
-	return s.Balancer.Stop()
+	return s.balancer.Stop()
 }
