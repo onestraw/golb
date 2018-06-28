@@ -2,6 +2,7 @@ package roundrobin
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 )
@@ -44,7 +45,11 @@ type Pool struct {
 func (p *Pool) String() string {
 	p.RLock()
 	defer p.RUnlock()
-	return fmt.Sprintf("%v", p.peers)
+	result := []string{}
+	for _, peer := range p.peers {
+		result = append(result, peer.addr)
+	}
+	return strings.Join(result, ", ")
 }
 
 func (p *Pool) Size() int {
