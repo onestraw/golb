@@ -112,7 +112,7 @@ func ListVirtualServer(b *balancer.Balancer) http.Handler {
 		name := vars["name"]
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
-			log.Errorf("FindVirtualServ err=%v", err)
+			log.Errorf("FindVirtualServer err=%v", err)
 			WriteBadRequest(w, err)
 			return
 		}
@@ -142,7 +142,7 @@ func ModifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
-			log.Errorf("FindVirtualServ err=%v", err)
+			log.Errorf("FindVirtualServer err=%v", err)
 			WriteBadRequest(w, err)
 			return
 		}
@@ -156,7 +156,9 @@ func ModifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 				msg = err.Error()
 			}
 		} else {
-			msg = "unknown action"
+			log.Errorf("%v", ErrUnknownAction)
+			WriteError(w, ErrUnknownAction)
+			return
 		}
 
 		io.WriteString(w, msg)
@@ -177,7 +179,7 @@ func AddVirtualServer(b *balancer.Balancer) http.Handler {
 		log.Infof("VirtualServer %v", vs)
 		err = b.AddVirtualServer(&vs)
 		if err != nil {
-			log.Errorf("AddVirtualServ err=%v", err)
+			log.Errorf("AddVirtualServer err=%v", err)
 			WriteBadRequest(w, err)
 			return
 		}
@@ -203,7 +205,7 @@ func AddPoolMember(b *balancer.Balancer) http.Handler {
 		name := vars["name"]
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
-			log.Errorf("FindVirtualServ err=%v", err)
+			log.Errorf("FindVirtualServer err=%v", err)
 			WriteBadRequest(w, err)
 			return
 		}
@@ -229,7 +231,7 @@ func DeletePoolMember(b *balancer.Balancer) http.Handler {
 		name := vars["name"]
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
-			log.Errorf("FindVirtualServ err=%v", err)
+			log.Errorf("FindVirtualServer err=%v", err)
 			WriteBadRequest(w, err)
 			return
 		}
