@@ -154,6 +154,7 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
 		Stats:        stats.New(),
+		status:       STATUS_DISABLED,
 	}
 	for _, opt := range opts {
 		if err := opt(vs); err != nil {
