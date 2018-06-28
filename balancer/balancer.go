@@ -3,8 +3,6 @@ package balancer
 import (
 	"sync"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/onestraw/golb/config"
 )
 
@@ -26,32 +24,30 @@ func New(vss []config.VirtualServer) (*Balancer, error) {
 	return b, nil
 }
 
-func (b *Balancer) AddVirtualServer(vs *config.VirtualServer) error {
-	new_vs, err := NewVirtualServer(
-		NameOpt(vs.Name),
-		AddressOpt(vs.Address),
-		ServerNameOpt(vs.ServerName),
-		ProtocolOpt(vs.Protocol),
-		LBMethodOpt(vs.LBMethod),
-		PoolOpt(vs.LBMethod, vs.Pool),
+func (b *Balancer) AddVirtualServer(cvs *config.VirtualServer) error {
+	vs, err := NewVirtualServer(
+		NameOpt(cvs.Name),
+		AddressOpt(cvs.Address),
+		ServerNameOpt(cvs.ServerName),
+		ProtocolOpt(cvs.Protocol),
+		LBMethodOpt(cvs.LBMethod),
+		PoolOpt(cvs.LBMethod, cvs.Pool),
 	)
 	if err != nil {
 		return err
 	}
-	log.Infof("Listen %s, proto %s, method %s, pool %v",
-		new_vs.Address, new_vs.Protocol, new_vs.LBMethod, new_vs.Pool)
 
 	b.Lock()
 	defer b.Unlock()
 	for _, v := range b.VServers {
-		if v.Name == new_vs.Name {
+		if v.Name == vs.Name {
 			return ErrVirtualServerNameExisted
 		}
-		if v.Address == new_vs.Address {
+		if v.Address == vs.Address {
 			return ErrVirtualServerAddressExisted
 		}
 	}
-	b.VServers = append(b.VServers, new_vs)
+	b.VServers = append(b.VServers, vs)
 
 	return nil
 }
