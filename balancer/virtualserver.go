@@ -226,7 +226,8 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rp.ServeHTTP(&rw, r)
 
 	s.Stats.Inc(peer, rw.code)
-	log.Infof("response code: %d", rw.code)
+	log.Infof("%s - %s %s %s - %d", r.RemoteAddr, r.Method, r.URL, r.Proto, rw.code)
+
 	if rw.code/100 == 5 {
 		s.pool_lock.Lock()
 		if _, ok := s.fails[peer]; !ok {
@@ -284,6 +285,8 @@ func (s *VirtualServer) Run() error {
 		return ErrNotSupportedProto
 	}
 
+	log.Infof("Starting [%s], listen %s, proto %s, method %s, pool %v",
+		s.Name, s.Address, s.Protocol, s.LBMethod, s.Pool)
 	go func() {
 		s.statusSwitch(STATUS_ENABLED)
 		err := s.server.ListenAndServe()
@@ -301,8 +304,8 @@ func (s *VirtualServer) Stop() error {
 		return fmt.Errorf("%s is already disabled", s.Name)
 	}
 
-	err := s.server.Shutdown(nil)
-	if err != nil {
+	log.Infof("Stopping [%s]", s.Name)
+	if err := s.server.Shutdown(nil); err != nil {
 		return fmt.Errorf("%s Shutdown error=%v", s.Name, err)
 	}
 	return nil

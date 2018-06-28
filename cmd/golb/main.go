@@ -3,8 +3,18 @@ package main
 import (
 	"flag"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/onestraw/golb/service"
 )
+
+func init() {
+	formatter := &logrus.TextFormatter{
+		FullTimestamp: true,
+		//DisableColors: true,
+	}
+	logrus.SetFormatter(formatter)
+}
 
 func main() {
 	var flagConfig = flag.String("config", "golb.json", "json configuration file")
