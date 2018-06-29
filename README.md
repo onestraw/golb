@@ -7,10 +7,9 @@ A load balancer with features:
 
 - [roundrobin](roundrobin/): smooth weighted roundrobin method
 - [chash](chash/): cosistent hashing method
-- multiple LB instances, start/stop at runtime
-- dynamic configuration
-- passive health check
-- stats
+- [balancer](balancer/): multiple LB instances, passive health check
+- [controller](controller/): dynamic configuration, REST API to start/stop/add/remove LB at runtime
+- [statistics](stats/): status code
 
 ## Let's try
 
