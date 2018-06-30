@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sort"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -61,7 +64,8 @@ type VirtualServer struct {
 	ReverseProxy map[string]*httputil.ReverseProxy
 	rp_lock      sync.RWMutex
 
-	Stats *stats.Stats
+	ServerStats map[string]*stats.Stats
+	ss_lock     sync.RWMutex
 
 	server *http.Server
 	status string
@@ -153,7 +157,7 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 		fails:        make(map[string]int),
 		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
-		Stats:        stats.New(),
+		ServerStats:  make(map[string]*stats.Stats),
 		status:       STATUS_DISABLED,
 	}
 	for _, opt := range opts {
@@ -166,7 +170,13 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 
 type LBResponseWriter struct {
 	http.ResponseWriter
-	code int
+	code  int
+	bytes int
+}
+
+func (w *LBResponseWriter) Write(data []byte) (int, error) {
+	w.bytes = len(data)
+	return w.ResponseWriter.Write(data)
 }
 
 func (w *LBResponseWriter) WriteHeader(code int) {
@@ -223,10 +233,11 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.ReverseProxy[peer] = rp
 		}
 	}
-	rw := LBResponseWriter{w, 200}
-	rp.ServeHTTP(&rw, r)
+	rw := &LBResponseWriter{w, 200, 0}
+	rp.ServeHTTP(rw, r)
 
-	s.Stats.Inc(peer, rw.code)
+	// r.Method, r.URL.Path, r.ContentLength, rw.bytes, rw.code
+	s.StatsInc(peer, r, rw)
 	log.Infof("%s - %s %s %s - %d", r.RemoteAddr, r.Method, r.URL, r.Proto, rw.code)
 
 	if rw.code/100 == 5 {
@@ -244,6 +255,43 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *VirtualServer) StatsInc(addr string, r *http.Request, w *LBResponseWriter) {
+	s.ss_lock.RLock()
+	ss, ok := s.ServerStats[addr]
+	s.ss_lock.RUnlock()
+	if !ok {
+		s.ss_lock.Lock()
+		ss = stats.New()
+		s.ServerStats[addr] = ss
+		s.ss_lock.Unlock()
+	}
+	data := &stats.Data{
+		StatusCode: strconv.Itoa(w.code),
+		Method:     r.Method,
+		Path:       r.URL.Path,
+		InBytes:    uint64(r.ContentLength),
+		OutBytes:   uint64(w.bytes),
+	}
+	ss.Inc(data)
+}
+
+func (s *VirtualServer) Stats() string {
+	keys := []string{}
+	for key, _ := range s.ServerStats {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+	result := []string{
+		fmt.Sprintf("Pool-%s", s.Name),
+	}
+	for _, peer := range keys {
+		ss := s.ServerStats[peer]
+		result = append(result, fmt.Sprintf("%s\n%s\n------", peer, ss))
+	}
+	return strings.Join(result, "\n")
+}
+
 func (s *VirtualServer) AddPeer(addr string, args ...interface{}) {
 	s.Pool.Add(addr, args...)
 }
@@ -258,7 +306,9 @@ func (s *VirtualServer) RemovePeer(addr string) {
 	delete(s.ReverseProxy, addr)
 	s.rp_lock.Unlock()
 
-	s.Stats.Remove(addr)
+	s.ss_lock.Lock()
+	delete(s.ServerStats, addr)
+	s.ss_lock.Unlock()
 
 	s.Pool.Remove(addr)
 }

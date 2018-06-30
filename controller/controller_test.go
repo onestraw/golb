@@ -14,6 +14,7 @@ import (
 
 	"github.com/onestraw/golb/balancer"
 	"github.com/onestraw/golb/config"
+	"github.com/onestraw/golb/stats"
 )
 
 func load(jsonBody string) (*config.Configuration, error) {
@@ -97,11 +98,21 @@ func TestStatsHandler(t *testing.T) {
 	b := mockBalancer(t)
 	h := &StatsHandler{b}
 	req := httptest.NewRequest("GET", "/stats", nil)
-	b.VServers[0].Stats.Inc("127.0.0.1:10001", 200)
-	b.VServers[0].Stats.Inc("127.0.0.1:10001", 200)
-	b.VServers[0].Stats.Inc("127.0.0.1:10001", 500)
-	b.VServers[0].Stats.Inc("127.0.0.1:10002", 200)
-	expect := "pool-web:\n127.0.0.1:10001, 200:2, 500:1\n127.0.0.1:10002, 200:1\n\n"
+	data := &stats.Data{
+		StatusCode: "200",
+		Method:     "POST",
+		Path:       "test/",
+		InBytes:    10,
+		OutBytes:   20,
+	}
+	b.VServers[0].ServerStats["127.0.0.1:10001"] = stats.New()
+	b.VServers[0].ServerStats["127.0.0.1:10002"] = stats.New()
+	b.VServers[0].ServerStats["127.0.0.1:10001"].Inc(data)
+	b.VServers[0].ServerStats["127.0.0.1:10001"].Inc(data)
+	b.VServers[0].ServerStats["127.0.0.1:10002"].Inc(data)
+	data.StatusCode = "500"
+	b.VServers[0].ServerStats["127.0.0.1:10001"].Inc(data)
+	expect := "Pool-web\n127.0.0.1:10001\nstatus_code: 200:2, 500:1\nmethod: POST:3\npath: test/:3\nrecv_bytes: 30\nsend_bytes: 60\n------\n127.0.0.1:10002\nstatus_code: 200:1\nmethod: POST:1\npath: test/:1\nrecv_bytes: 10\nsend_bytes: 20\n------"
 	testCtrlSuit(t, h, req, 200, expect)
 }
 

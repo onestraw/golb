@@ -88,11 +88,10 @@ type StatsHandler struct {
 func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result := []string{}
 	for _, vs := range h.balancer.VServers {
-		s := fmt.Sprintf("pool-%s:\n%s", vs.Name, vs.Stats)
+		s := vs.Stats()
 		log.Infof(s)
 		result = append(result, s)
 	}
-	result = append(result, "\n")
 	io.WriteString(w, strings.Join(result, "\n"))
 }
 
