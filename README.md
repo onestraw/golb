@@ -10,8 +10,8 @@ Yet another load balancer
 
 - [roundrobin](roundrobin/): smooth weighted roundrobin method
 - [chash](chash/): cosistent hashing method
-- [balancer](balancer/): multiple LB instances, passive health check
-- [controller](controller/): dynamic configuration, REST API to start/stop/add/remove LB at runtime
+- [balancer](balancer/): **multiple LB instances, passive health check, SSL offloading**
+- [controller](controller/): dynamic configuration, **REST API to start/stop/add/remove LB at runtime**
 - [statistics](stats/): HTTP method/path/code/bytes
 
 ## Let's try

@@ -1,10 +1,12 @@
 package balancer
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +25,7 @@ const (
 	LB_ROUNDROBIN    = "round-robin"
 	LB_COSISTENTHASH = "consistent-hash"
 	PROTO_HTTP       = "http"
+	PROTO_HTTPS      = "https"
 	PROTO_GRPC       = "grpc"
 	STATUS_ENABLED   = "running"
 	STATUS_DISABLED  = "stopped"
@@ -47,6 +50,8 @@ type VirtualServer struct {
 	Address    string
 	ServerName string
 	Protocol   string
+	CertFile   string
+	KeyFile    string
 	LBMethod   string
 	Pool       Pooler
 
@@ -109,6 +114,25 @@ func ProtocolOpt(proto string) VirtualServerOption {
 			proto = PROTO_HTTP
 		}
 		vs.Protocol = proto
+		return nil
+	}
+}
+
+// TLSOpt should be called after ProtocolOpt
+func TLSOpt(certFile, keyFile string) VirtualServerOption {
+	return func(vs *VirtualServer) error {
+		if vs.Protocol != PROTO_HTTPS {
+			return nil
+		}
+		if _, err := os.Stat(certFile); err != nil {
+			return fmt.Errorf("Cert file '%s' does not exist", certFile)
+		}
+		if _, err := os.Stat(keyFile); err != nil {
+			return fmt.Errorf("Key file '%s' does not exist", keyFile)
+		}
+
+		vs.CertFile = certFile
+		vs.KeyFile = keyFile
 		return nil
 	}
 }
@@ -325,14 +349,24 @@ func (s *VirtualServer) Status() string {
 	return s.status
 }
 
+func (s *VirtualServer) ListenAndServe() error {
+	switch s.Protocol {
+	case PROTO_HTTP:
+		s.server = &http.Server{Addr: s.Address, Handler: s}
+		return s.server.ListenAndServe()
+	case PROTO_HTTPS:
+		s.server = &http.Server{Addr: s.Address, Handler: s}
+		return s.server.ListenAndServeTLS(s.CertFile, s.KeyFile)
+	}
+	return ErrNotSupportedProto
+}
+
 func (s *VirtualServer) Run() error {
 	if s.Status() == STATUS_ENABLED {
 		return fmt.Errorf("%s is already enabled", s.Name)
 	}
 
-	if s.Protocol == PROTO_HTTP {
-		s.server = &http.Server{Addr: s.Address, Handler: s}
-	} else {
+	if s.Protocol != PROTO_HTTP && s.Protocol != PROTO_HTTPS {
 		return ErrNotSupportedProto
 	}
 
@@ -340,7 +374,7 @@ func (s *VirtualServer) Run() error {
 		s.Name, s.Address, s.Protocol, s.LBMethod, s.Pool)
 	go func() {
 		s.statusSwitch(STATUS_ENABLED)
-		err := s.server.ListenAndServe()
+		err := s.ListenAndServe()
 		if err != nil {
 			log.Errorf("%s ListenAndServe error=%v", s.Name, err)
 		}
@@ -356,7 +390,7 @@ func (s *VirtualServer) Stop() error {
 	}
 
 	log.Infof("Stopping [%s]", s.Name)
-	if err := s.server.Shutdown(nil); err != nil {
+	if err := s.server.Shutdown(context.Background()); err != nil {
 		return fmt.Errorf("%s Shutdown error=%v", s.Name, err)
 	}
 	return nil

@@ -30,6 +30,7 @@ func (b *Balancer) AddVirtualServer(cvs *config.VirtualServer) error {
 		AddressOpt(cvs.Address),
 		ServerNameOpt(cvs.ServerName),
 		ProtocolOpt(cvs.Protocol),
+		TLSOpt(cvs.CertFile, cvs.KeyFile),
 		LBMethodOpt(cvs.LBMethod),
 		PoolOpt(cvs.LBMethod, cvs.Pool),
 	)

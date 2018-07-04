@@ -23,6 +23,8 @@ type VirtualServer struct {
 	Address    string   `json:"address"`
 	ServerName string   `json:"server_name"`
 	Protocol   string   `json:"protocol"`
+	CertFile   string   `json:"cert_file"`
+	KeyFile    string   `json:"key_file"`
 	LBMethod   string   `json:"lb_method"`
 	Pool       []Server `json:"pool"`
 }
