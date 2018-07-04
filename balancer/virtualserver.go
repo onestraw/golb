@@ -189,6 +189,13 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 			return nil, err
 		}
 	}
+
+	if vs.Protocol != PROTO_HTTP && vs.Protocol != PROTO_HTTPS {
+		return nil, ErrNotSupportedProto
+	}
+
+	vs.server = &http.Server{Addr: vs.Address, Handler: vs}
+
 	return vs, nil
 }
 
@@ -352,10 +359,8 @@ func (s *VirtualServer) Status() string {
 func (s *VirtualServer) ListenAndServe() error {
 	switch s.Protocol {
 	case PROTO_HTTP:
-		s.server = &http.Server{Addr: s.Address, Handler: s}
 		return s.server.ListenAndServe()
 	case PROTO_HTTPS:
-		s.server = &http.Server{Addr: s.Address, Handler: s}
 		return s.server.ListenAndServeTLS(s.CertFile, s.KeyFile)
 	}
 	return ErrNotSupportedProto
@@ -366,19 +371,15 @@ func (s *VirtualServer) Run() error {
 		return fmt.Errorf("%s is already enabled", s.Name)
 	}
 
-	if s.Protocol != PROTO_HTTP && s.Protocol != PROTO_HTTPS {
-		return ErrNotSupportedProto
-	}
-
 	log.Infof("Starting [%s], listen %s, proto %s, method %s, pool %v",
 		s.Name, s.Address, s.Protocol, s.LBMethod, s.Pool)
 	go func() {
 		s.statusSwitch(STATUS_ENABLED)
+		defer s.statusSwitch(STATUS_DISABLED)
 		err := s.ListenAndServe()
 		if err != nil {
 			log.Errorf("%s ListenAndServe error=%v", s.Name, err)
 		}
-		s.statusSwitch(STATUS_DISABLED)
 	}()
 
 	return nil
