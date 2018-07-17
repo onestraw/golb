@@ -10,9 +10,11 @@ import (
 	"github.com/onestraw/golb/balancer"
 	"github.com/onestraw/golb/config"
 	"github.com/onestraw/golb/controller"
+	sd "github.com/onestraw/golb/discovery"
 )
 
 type Service struct {
+	discovery  *sd.ServiceDiscovery
 	controller *controller.Controller
 	balancer   *balancer.Balancer
 }
@@ -23,6 +25,15 @@ func New(configFile string) (*Service, error) {
 		return nil, err
 	}
 
+	sdCfg := c.ServiceDiscovery
+	dis, err := sd.New(sd.TypeOpt(sdCfg.Type),
+		sd.ClusterOpt(sdCfg.Cluster),
+		sd.PrefixOpt(sdCfg.Prefix),
+		sd.SecurityOpt(sdCfg.CertFile, sdCfg.KeyFile, sdCfg.TrustedCAFile))
+	if err != nil {
+		return nil, err
+	}
+
 	ctl := controller.New(&c.Controller)
 	b, err := balancer.New(c.VServers)
 	if err != nil {
@@ -30,6 +41,7 @@ func New(configFile string) (*Service, error) {
 	}
 
 	return &Service{
+		discovery:  dis,
 		controller: ctl,
 		balancer:   b,
 	}, nil
@@ -40,6 +52,7 @@ func (s *Service) Run() error {
 	sigC := make(chan os.Signal)
 	signal.Notify(sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
 
+	s.discovery.Run(s.balancer)
 	s.controller.Run(s.balancer)
 	if err := s.balancer.Run(); err != nil {
 		return err

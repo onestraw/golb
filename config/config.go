@@ -39,9 +39,19 @@ type Controller struct {
 	Auth    Authentication `json:"auth"`
 }
 
+type ServiceDiscovery struct {
+	Type          string `json:"type"`
+	Cluster       string `json:"cluster"`
+	Prefix        string `json:"prefix"`
+	CertFile      string `json:"cert_file"`
+	KeyFile       string `json:"key_file"`
+	TrustedCAFile string `json:"trusted_ca_file"`
+}
+
 type Configuration struct {
-	Controller Controller      `json:"controller"`
-	VServers   []VirtualServer `json:"virtual_server"`
+	ServiceDiscovery ServiceDiscovery `json:"service_discovery"`
+	Controller       Controller       `json:"controller"`
+	VServers         []VirtualServer  `json:"virtual_server"`
 }
 
 func (c *Configuration) Load(configFile string) error {

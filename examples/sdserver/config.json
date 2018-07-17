@@ -1,0 +1,21 @@
+{
+  "service_discovery": {
+      "type": "etcd",
+      "cluster": "127.0.0.1:2379",
+      "prefix": "/golb-cluster-1"
+  },
+  "controller": {
+      "address": "127.0.0.1:6587",
+      "auth": {
+          "username": "admin",
+          "password": "admin"
+      }
+  },
+  "virtual_server": [
+    {
+      "name": "web",
+      "address": "127.0.0.1:8081",
+      "pool": []
+    }
+  ]
+}
