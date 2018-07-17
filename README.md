@@ -48,20 +48,17 @@ and define a virtual server including two servers with the default roundrobin me
 }
 ```
 
-### steps
+### run the demo
 
-- Terminal #1: `make run`
-- Terminal #2: `watch 'curl -H "Host:localhost" http://127.0.0.1:8081 > /dev/null'`
-- Terminal #3: `python -m SimpleHTTPServer 10001 & python -m SimpleHTTPServer 10002 & python -m SimpleHTTPServer 10003`
-- Terminal #4:
+`make demo`
 
-#### query basic stats
+### query basic stats
 
     curl -u admin:admin http://127.0.0.1:6587/stats
     curl -u admin:admin http://127.0.0.1:6587/vs
     curl -u admin:admin http://127.0.0.1:6587/vs/web
 
-#### add/remove pool member
+### add/remove pool member
 
     curl -XPOST -u admin:admin -d '{"address":"127.0.0.1:10003"}' http://127.0.0.1:6587/vs/web/pool
     curl -u admin:admin http://127.0.0.1:6587/vs/web
@@ -69,7 +66,7 @@ and define a virtual server including two servers with the default roundrobin me
 
     curl -XDELETE -u admin:admin -d '{"address":"127.0.0.1:10003"}' http://127.0.0.1:6587/vs/web/pool
 
-#### enable/disable LB instance
+### enable/disable LB instance
 
     curl -XPOST -u admin:admin -d '{"action":"disable"}' http://127.0.0.1:6587/vs/web
     curl -u admin:admin http://127.0.0.1:6587/vs/web

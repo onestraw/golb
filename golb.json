@@ -10,10 +10,6 @@
     {
       "name": "web",
       "address": "127.0.0.1:8081",
-      "server_name": "localhost:8081",
-      "protocol": "https",
-      "cert_file": "server.pem",
-      "key_file": "server.key",
       "pool": [
         {
           "address": "127.0.0.1:10001",
@@ -28,6 +24,10 @@
     {
       "name": "web-2",
       "address": "127.0.0.1:8082",
+      "server_name": "localhost:8082",
+      "protocol": "https",
+      "cert_file": "server.pem",
+      "key_file": "server.key",
       "pool": [
         {
           "address": "127.0.0.1:10003"
