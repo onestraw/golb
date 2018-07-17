@@ -9,12 +9,3 @@ test-verbose:
 
 build:
 	go install github.com/onestraw/golb/cmd/golb/
-
-run: build
-	golb -config=golb.json
-
-deps:
-	go get github.com/mattn/goreman
-
-demo:deps
-	goreman start
