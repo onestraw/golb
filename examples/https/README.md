@@ -1,0 +1,4 @@
+- refer `create_cert.sh`
+- (trust the certificate](https://tosbourn.com/getting-os-x-to-trust-self-signed-ssl-certificates/)
+- `goreman start`
+- open `https://localhost:8081/` in browser
