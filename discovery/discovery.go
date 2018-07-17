@@ -12,6 +12,7 @@ import (
 )
 
 type ServiceDiscovery struct {
+	Enabled       bool
 	Type          string
 	Cluster       string
 	Prefix        string
@@ -21,12 +22,13 @@ type ServiceDiscovery struct {
 }
 
 func New(opts ...ServiceDiscoveryOption) (*ServiceDiscovery, error) {
-	sd := &ServiceDiscovery{}
+	sd := &ServiceDiscovery{Enabled: false}
 	for _, opt := range opts {
 		if err := opt(sd); err != nil {
-			return nil, err
+			return sd, err
 		}
 	}
+	sd.Enabled = true
 	return sd, nil
 }
 
@@ -88,6 +90,11 @@ func SecurityOpt(certFile, keyFile, trustedCAFile string) ServiceDiscoveryOption
 }
 
 func (sd *ServiceDiscovery) Run(balancer *balancer.Balancer) {
+	if !sd.Enabled {
+		log.Infof("ServiceDiscovery is not enabled")
+		return
+	}
+
 	cli, err := etcd.New(sd.Cluster, sd.Prefix, sd.CertFile, sd.KeyFile, sd.TrustedCAFile)
 	if err != nil {
 		log.Errorf("etcd.New() err=%v", err)

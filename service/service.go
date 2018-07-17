@@ -31,7 +31,7 @@ func New(configFile string) (*Service, error) {
 		sd.PrefixOpt(sdCfg.Prefix),
 		sd.SecurityOpt(sdCfg.CertFile, sdCfg.KeyFile, sdCfg.TrustedCAFile))
 	if err != nil {
-		return nil, err
+		log.Warnf("New ServiceDiscovery err=%v", err)
 	}
 
 	ctl := controller.New(&c.Controller)
