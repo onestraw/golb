@@ -35,7 +35,7 @@ func load(jsonBody string) (*config.Configuration, error) {
 }
 
 func mockBalancer(t *testing.T) *balancer.Balancer {
-	jsonBody := `{"virtual_server":[{"name":"web","address":"127.0.0.1:8081","server_name":"localhost","pool":[{"address":"127.0.0.1:10001","weight":1},{"address":"127.0.0.1:10002","weight":2}],"lb_method":"round-robin"}]}`
+	jsonBody := `{"virtual_server":[{"name":"web","address":"127.0.0.1:8082","server_name":"localhost","pool":[{"address":"127.0.0.1:10001","weight":1},{"address":"127.0.0.1:10002","weight":2}],"lb_method":"round-robin"}]}`
 	c, err := load(jsonBody)
 	if err != nil {
 		t.Errorf("Load err= %v", err)
@@ -70,7 +70,6 @@ func testCtrlSuit(t *testing.T, h http.Handler, req *http.Request, expectCode in
 
 	if !bytes.Equal(body, []byte(expectBody)) {
 		t.Errorf("Expect body '%s', but got '%s'", expectBody, string(body))
-		return
 	}
 }
 
@@ -78,7 +77,7 @@ func TestListAllVirtualServer(t *testing.T) {
 	b := mockBalancer(t)
 	h := ListAllVirtualServer(b)
 	req := httptest.NewRequest("GET", "/vs", nil)
-	expect := "Name:web, Address:127.0.0.1:8081, Status:stopped, Pool:\n127.0.0.1:10001, 127.0.0.1:10002\n\n"
+	expect := "Name:web, Address:127.0.0.1:8082, Status:stopped, Pool:\n127.0.0.1:10001, 127.0.0.1:10002\n\n"
 	testCtrlSuit(t, h, req, 200, expect)
 }
 
@@ -138,8 +137,6 @@ func TestModifyVirtualServerStatus(t *testing.T) {
 		"name": "web",
 	})
 	testCtrlSuit(t, h, req, 200, "web is already enabled")
-
-	time.Sleep(2 * time.Second)
 
 	// disalbe
 	body, _ = json.Marshal(map[string]string{"action": "disable"})
