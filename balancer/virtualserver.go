@@ -17,6 +17,7 @@ import (
 
 	"github.com/onestraw/golb/chash"
 	"github.com/onestraw/golb/config"
+	"github.com/onestraw/golb/retry"
 	"github.com/onestraw/golb/roundrobin"
 	"github.com/onestraw/golb/stats"
 )
@@ -194,7 +195,7 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 		return nil, ErrNotSupportedProto
 	}
 
-	vs.server = &http.Server{Addr: vs.Address, Handler: vs}
+	vs.server = &http.Server{Addr: vs.Address, Handler: retry.Retry(vs)}
 
 	return vs, nil
 }
@@ -206,8 +207,9 @@ type LBResponseWriter struct {
 }
 
 func (w *LBResponseWriter) Write(data []byte) (int, error) {
-	w.bytes = len(data)
-	return w.ResponseWriter.Write(data)
+	size, err := w.ResponseWriter.Write(data)
+	w.bytes += size
+	return size, err
 }
 
 func (w *LBResponseWriter) WriteHeader(code int) {
@@ -217,6 +219,13 @@ func (w *LBResponseWriter) WriteHeader(code int) {
 
 // ServeHTTP dispatch the request between backend servers
 func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	timeBegin := time.Now()
+	statusCode := http.StatusOK
+	defer func() {
+		cost := time.Now().Sub(timeBegin) / time.Millisecond
+		log.Infof("%s - %s %s %s %dms- %d", r.RemoteAddr, r.Method, r.URL, r.Proto, cost, statusCode)
+	}()
+
 	s.RLock()
 	defer s.RUnlock()
 
@@ -257,19 +266,19 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Infof("%v", target)
 		s.rp_lock.Lock()
-		defer s.rp_lock.Unlock()
 		// double check to avoid that the proxy is created while applying the lock
 		if rp, ok = s.ReverseProxy[peer]; !ok {
 			rp = httputil.NewSingleHostReverseProxy(target)
 			s.ReverseProxy[peer] = rp
 		}
+		s.rp_lock.Unlock()
 	}
 	rw := &LBResponseWriter{w, 200, 0}
 	rp.ServeHTTP(rw, r)
 
 	// r.Method, r.URL.Path, r.ContentLength, rw.bytes, rw.code
 	s.StatsInc(peer, r, rw)
-	log.Infof("%s - %s %s %s - %d", r.RemoteAddr, r.Method, r.URL, r.Proto, rw.code)
+	statusCode = rw.code
 
 	if rw.code/100 == 5 {
 		s.pool_lock.Lock()
