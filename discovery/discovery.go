@@ -98,6 +98,7 @@ func (sd *ServiceDiscovery) Run(balancer *balancer.Balancer) {
 	cli, err := etcd.New(sd.Cluster, sd.Prefix, sd.CertFile, sd.KeyFile, sd.TrustedCAFile)
 	if err != nil {
 		log.Errorf("etcd.New() err=%v", err)
+		return
 	}
 	go cli.Run(balancer)
 }
