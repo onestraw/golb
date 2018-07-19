@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/onestraw/golb/config"
 )
 
@@ -33,46 +36,19 @@ func load(jsonBody string) (*config.Configuration, error) {
 	return c, nil
 }
 
-func newHandler(label string) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(label))
-	})
-}
-
-func mockBalancer(t *testing.T) *Balancer {
-	s1 := httptest.NewServer(newHandler("s1"))
-	s2 := httptest.NewServer(newHandler("s2"))
-	jsonBody := fmt.Sprintf(`{"virtual_server":[{"name":"web","address":"%s","pool":[{"address":"%s","weight":1},{"address":"%s","weight":1}],"lb_method":"round-robin"}]}`, proxyAddr, s1.URL[7:], s2.URL[7:])
-
-	c, err := load(jsonBody)
-	if err != nil {
-		t.Errorf("Load err= %v", err)
-		return nil
-	}
-
-	b, err := New(c.VServers)
-	if err != nil {
-		t.Errorf("New() err= %v", err)
-		return nil
-	}
-	return b
-}
-
 type Response struct {
 	StatusCode int
 	Body       string
 }
 
-func request() (*Response, error) {
+func request(addr string) (*Response, error) {
 	client := &http.Client{}
-	proxyUrl := fmt.Sprintf("http://%s/", proxyAddr)
+	proxyUrl := fmt.Sprintf("http://%s/", addr)
 	req, err := http.NewRequest("GET", proxyUrl, nil)
 	if err != nil {
 		return nil, err
 	}
-	//req.Header.Set("Host", "localhost")
 	req.Host = "localhost"
-	fmt.Printf("%v", req.Header)
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -90,38 +66,53 @@ func request() (*Response, error) {
 	}, nil
 }
 
+func newHandler(label string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(label))
+	})
+}
+
+func mockBalancer(t *testing.T) *Balancer {
+	s1 := httptest.NewServer(newHandler("s1"))
+	s2 := httptest.NewServer(newHandler("s2"))
+	jsonBody := fmt.Sprintf(`{"virtual_server":[{"name":"web","address":"%s","pool":[{"address":"%s","weight":1},{"address":"%s","weight":1}],"lb_method":"round-robin"}]}`, proxyAddr, s1.URL[7:], s2.URL[7:])
+
+	c, err := load(jsonBody)
+	require.NoError(t, err)
+
+	b, err := New(c.VServers)
+	require.NoError(t, err)
+
+	return b
+}
+
 func TestBalancer(t *testing.T) {
 	b := mockBalancer(t)
-	if err := b.Run(); err != nil {
-		t.Errorf("run balancer err=%v", err)
-		return
-	}
+	require.NoError(t, b.Run())
 	time.Sleep(2 * time.Second)
 	//because goroutine in vs.Run() maybe unfinished, vs.status is unpredictable
 	//t.Logf("balancer.VServers[0]: %v", b.VServers[0])
-
 	result := map[string]int{}
 	for i := 0; i < 10; i += 1 {
-		resp, err := request()
-		if err != nil {
-			t.Errorf("http.Get() err=%v", err)
-			return
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("%dth expect status %d, but got %d", i, http.StatusOK, resp.StatusCode)
-			return
-		}
-
+		resp, err := request(proxyAddr)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		result[resp.Body] += 1
 	}
+	assert.Equal(t, 5, result["s1"])
+	assert.Equal(t, 5, result["s2"])
 
-	if result["s1"] != 5 || result["s2"] != 5 {
-		t.Errorf("LB stats should be (5,5), but got %v,", result)
-		return
-	}
+	require.NoError(t, b.Stop())
+}
 
-	if err := b.Stop(); err != nil {
-		t.Errorf("balancer.Stop() err=%v", err)
-	}
+func TestFindVirtualServer(t *testing.T) {
+	b := mockBalancer(t)
+	vsName := "web"
+	vs, err := b.FindVirtualServer(vsName)
+	require.NoError(t, err)
+	assert.NotNil(t, vs)
+
+	vs, err = b.FindVirtualServer("not_existed")
+	assert.Equal(t, ErrVirtualServerNotFound, err)
+	assert.Nil(t, vs)
 }

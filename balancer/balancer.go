@@ -32,7 +32,7 @@ func (b *Balancer) AddVirtualServer(cvs *config.VirtualServer) error {
 		ProtocolOpt(cvs.Protocol),
 		TLSOpt(cvs.CertFile, cvs.KeyFile),
 		LBMethodOpt(cvs.LBMethod),
-		PoolOpt(cvs.LBMethod, cvs.Pool),
+		PoolOpt(cvs.Pool),
 	)
 	if err != nil {
 		return err
@@ -40,14 +40,6 @@ func (b *Balancer) AddVirtualServer(cvs *config.VirtualServer) error {
 
 	b.Lock()
 	defer b.Unlock()
-	for _, v := range b.VServers {
-		if v.Name == vs.Name {
-			return ErrVirtualServerNameExisted
-		}
-		if v.Address == vs.Address {
-			return ErrVirtualServerAddressExisted
-		}
-	}
 	b.VServers = append(b.VServers, vs)
 
 	return nil

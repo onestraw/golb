@@ -31,6 +31,7 @@ const (
 	STATUS_ENABLED   = "running"
 	STATUS_DISABLED  = "stopped"
 
+	DEFAULT_SERVERNAME  = "localhost"
 	DEFAULT_FAILTIMEOUT = 7
 	DEFAULT_MAXFAILS    = 2
 )
@@ -102,7 +103,7 @@ func AddressOpt(addr string) VirtualServerOption {
 func ServerNameOpt(serverName string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if serverName == "" {
-			serverName = "localhost"
+			serverName = DEFAULT_SERVERNAME
 		}
 		vs.ServerName = serverName
 		return nil
@@ -113,6 +114,9 @@ func ProtocolOpt(proto string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if proto == "" {
 			proto = PROTO_HTTP
+		}
+		if proto != PROTO_HTTP && proto != PROTO_HTTPS {
+			return ErrNotSupportedProto
 		}
 		vs.Protocol = proto
 		return nil
@@ -151,11 +155,9 @@ func LBMethodOpt(method string) VirtualServerOption {
 	}
 }
 
-func PoolOpt(method string, peers []config.Server) VirtualServerOption {
+func PoolOpt(peers []config.Server) VirtualServerOption {
 	return func(vs *VirtualServer) error {
-		if method == "" {
-			method = LB_ROUNDROBIN
-		}
+		method := vs.LBMethod
 		if method == LB_ROUNDROBIN {
 			pairs := make(map[string]int)
 			for _, peer := range peers {
@@ -177,6 +179,9 @@ func PoolOpt(method string, peers []config.Server) VirtualServerOption {
 
 func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	vs := &VirtualServer{
+		Protocol:     PROTO_HTTP,
+		ServerName:   DEFAULT_SERVERNAME,
+		LBMethod:     LB_ROUNDROBIN,
 		MaxFails:     DEFAULT_MAXFAILS,
 		FailTimeout:  DEFAULT_FAILTIMEOUT,
 		fails:        make(map[string]int),
@@ -190,11 +195,12 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 			return nil, err
 		}
 	}
-
-	if vs.Protocol != PROTO_HTTP && vs.Protocol != PROTO_HTTPS {
-		return nil, ErrNotSupportedProto
+	if vs.Name == "" {
+		return nil, NameOpt("")(vs)
 	}
-
+	if vs.Address == "" {
+		return nil, AddressOpt("")(vs)
+	}
 	vs.server = &http.Server{Addr: vs.Address, Handler: retry.Retry(vs)}
 
 	return vs, nil
@@ -249,7 +255,7 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// use client's address as hash key if using consistent-hash method
 	peer := s.Pool.Get(r.RemoteAddr)
 	if peer == "" {
-		log.Errorf("Peer not found")
+		log.Errorf("Get peer failed: %v", ErrPeerNotFound)
 		WriteError(w, ErrPeerNotFound)
 		return
 	}
@@ -384,7 +390,6 @@ func (s *VirtualServer) Run() error {
 		s.Name, s.Address, s.Protocol, s.LBMethod, s.Pool)
 	go func() {
 		s.statusSwitch(STATUS_ENABLED)
-		defer s.statusSwitch(STATUS_DISABLED)
 		err := s.ListenAndServe()
 		if err != nil {
 			log.Errorf("%s ListenAndServe error=%v", s.Name, err)
@@ -403,5 +408,6 @@ func (s *VirtualServer) Stop() error {
 	if err := s.server.Shutdown(context.Background()); err != nil {
 		return fmt.Errorf("%s Shutdown error=%v", s.Name, err)
 	}
+	s.statusSwitch(STATUS_DISABLED)
 	return nil
 }
