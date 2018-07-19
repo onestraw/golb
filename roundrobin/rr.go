@@ -62,6 +62,9 @@ func (p *Pool) Add(addr string, args ...interface{}) {
 	if addr == "" {
 		return
 	}
+	if idx := p.indexOfPeer(addr); idx >= 0 {
+		return
+	}
 	weight := 1
 	if len(args) > 0 {
 		if w, ok := args[0].(int); ok {
