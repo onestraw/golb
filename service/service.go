@@ -20,8 +20,8 @@ type Service struct {
 }
 
 func New(configFile string) (*Service, error) {
-	c := &config.Configuration{}
-	if err := c.Load(configFile); err != nil {
+	c, err := config.Load(configFile)
+	if err != nil {
 		return nil, err
 	}
 

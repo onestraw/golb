@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"syscall"
 	"testing"
 	"time"
 
@@ -18,23 +17,6 @@ import (
 const (
 	proxyAddr = "127.0.0.1:8081"
 )
-
-func load(jsonBody string) (*config.Configuration, error) {
-	f, err := ioutil.TempFile("", "testconf.json")
-	if err != nil {
-		return nil, err
-	}
-	defer syscall.Unlink(f.Name())
-
-	ioutil.WriteFile(f.Name(), []byte(jsonBody), 0644)
-
-	c := &config.Configuration{}
-	err = c.Load(f.Name())
-	if err != nil {
-		return nil, err
-	}
-	return c, nil
-}
 
 type Response struct {
 	StatusCode int
@@ -77,7 +59,7 @@ func mockBalancer(t *testing.T) *Balancer {
 	s2 := httptest.NewServer(newHandler("s2"))
 	jsonBody := fmt.Sprintf(`{"virtual_server":[{"name":"web","address":"%s","pool":[{"address":"%s","weight":1},{"address":"%s","weight":1}],"lb_method":"round-robin"}]}`, proxyAddr, s1.URL[7:], s2.URL[7:])
 
-	c, err := load(jsonBody)
+	c, err := config.LoadFromString(jsonBody)
 	require.NoError(t, err)
 
 	b, err := New(c.VServers)

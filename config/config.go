@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 )
 
 var (
@@ -54,20 +55,35 @@ type Configuration struct {
 	VServers         []VirtualServer  `json:"virtual_server"`
 }
 
-func (c *Configuration) Load(configFile string) error {
+func Load(configFile string) (*Configuration, error) {
 	file, err := os.Open(configFile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer file.Close()
+
+	c := &Configuration{}
 	decoder := json.NewDecoder(file)
 	if err = decoder.Decode(c); err != nil {
-		return err
+		return nil, err
 	}
 	if err = c.check(); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return c, nil
+}
+
+func LoadFromString(config string) (*Configuration, error) {
+	var err error
+	c := &Configuration{}
+	decoder := json.NewDecoder(strings.NewReader(config))
+	if err = decoder.Decode(c); err != nil {
+		return nil, err
+	}
+	if err = c.check(); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 func (c *Configuration) check() error {

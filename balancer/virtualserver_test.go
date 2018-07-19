@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/onestraw/golb/config"
 )
 
 var (
@@ -26,7 +28,7 @@ func TestVirtualServer(t *testing.T) {
 	}
 	jsonBody := fmt.Sprintf(`{"virtual_server":[{"name":"web","address":"%s","pool":[{"address":"%s","weight":1},{"address":"%s","weight":1}]}]}`, VSAddr, S1, S2)
 
-	c, err := load(jsonBody)
+	c, err := config.LoadFromString(jsonBody)
 	require.NoError(t, err)
 
 	cvs := c.VServers[0]
@@ -81,7 +83,7 @@ func TestVirtualServerFail(t *testing.T) {
 	addr := "127.0.0.1:8084"
 	jsonBody := fmt.Sprintf(`{"virtual_server":[{"name":"web","address":"%s","pool":[{"address":"127.0.0.1:12345","weight":1}]}]}`, addr)
 
-	c, err := load(jsonBody)
+	c, err := config.LoadFromString(jsonBody)
 	require.NoError(t, err)
 
 	cvs := c.VServers[0]
