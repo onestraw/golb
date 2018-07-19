@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func testSuit(t *testing.T, username, password string, expected_status int) {
@@ -20,10 +22,7 @@ func testSuit(t *testing.T, username, password string, expected_status int) {
 	h.ServeHTTP(r, req)
 
 	resp := r.Result()
-	//t.Logf("%v", resp)
-	if resp.StatusCode != expected_status {
-		t.Errorf("expect %d, but got %d", expected_status, resp.StatusCode)
-	}
+	assert.Equal(t, expected_status, resp.StatusCode)
 }
 
 func TestAuthPass(t *testing.T) {

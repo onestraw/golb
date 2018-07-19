@@ -1,15 +1,16 @@
 package chash
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetEmpty(t *testing.T) {
 	pool := New()
 	t.Logf("%v", pool)
-	if pool.Get("any") != "" {
-		t.Errorf("Pool is empty")
-	}
+	assert.Equal(t, "", pool.Get("any"))
 }
 
 func TestGet(t *testing.T) {
@@ -22,19 +23,12 @@ func TestGet(t *testing.T) {
 	t.Logf("%v", pool.Get("/order"))
 	t.Logf("%v", pool.Get("/detail"))
 
-	if len(pool.vNodes) != pool.replica*3 {
-		t.Errorf("Pool's vNodes size should be %d, but got %d",
-			pool.replica*3, len(pool.sortedHashes))
-	}
+	assert.Equal(t, pool.replica*3, len(pool.vNodes))
+	assert.Equal(t, pool.replica*3, len(pool.sortedHashes))
+	assert.Equal(t, len(tests), pool.Size())
 
-	if len(pool.sortedHashes) != pool.replica*3 {
-		t.Errorf("Pool's sortedHashes size should be %d, but got %d",
-			pool.replica*3, len(pool.sortedHashes))
-	}
-
-	if pool.Size() != len(tests) {
-		t.Errorf("Pool size should be %d, but got %d", len(tests), pool.Size())
-	}
+	assert.Equal(t, "", pool.Get())
+	assert.Equal(t, "", pool.Get(10))
 }
 
 // refer to github.com/stathat/consistent/
@@ -63,9 +57,7 @@ func TestAdd(t *testing.T) {
 	//t.Logf("%v", pool)
 	for _, tc := range testsBefore {
 		result := pool.Get(tc.in)
-		if result != tc.out {
-			t.Errorf("before add, key=%s, expected %s, but got %s", tc.in, tc.out, result)
-		}
+		assert.Equal(t, tc.out, result, fmt.Sprintf("before add, key=%s, expected %s, but got %s", tc.in, tc.out, result))
 	}
 
 	pool.Add("4.4.4.4")
@@ -73,9 +65,7 @@ func TestAdd(t *testing.T) {
 	//t.Logf("%v", pool)
 	for _, tc := range testsAfter {
 		result := pool.Get(tc.in)
-		if result != tc.out {
-			t.Errorf("after add, key=%s, expected %s, but got %s", tc.in, tc.out, result)
-		}
+		assert.Equal(t, tc.out, result, fmt.Sprintf("after add, key=%s, expected %s, but got %s", tc.in, tc.out, result))
 	}
 }
 
@@ -98,17 +88,13 @@ func TestRemove(t *testing.T) {
 
 	for i, v := range rtestsBefore {
 		result := pool.Get(v.in)
-		if result != v.out {
-			t.Errorf("%d. got %q, expected %q before rm", i, result, v.out)
-		}
+		assert.Equal(t, v.out, result, fmt.Sprintf("%d. got %q, expected %q before rm", i, result, v.out))
 	}
 	pool.Remove("1.1.1.1")
 	//t.Logf("%v", pool)
 	for i, v := range rtestsAfter {
 		result := pool.Get(v.in)
-		if result != v.out {
-			t.Errorf("%d. got %q, expected %q after rm", i, result, v.out)
-		}
+		assert.Equal(t, v.out, result, fmt.Sprintf("%d. got %q, expected %q after rm", i, result, v.out))
 	}
 }
 
@@ -131,25 +117,19 @@ func TestDownPeer(t *testing.T) {
 
 	for i, v := range rtestsBefore {
 		result := pool.Get(v.in)
-		if result != v.out {
-			t.Errorf("%d. got %q, expected %q before down", i, result, v.out)
-		}
+		assert.Equal(t, v.out, result, fmt.Sprintf("%d. got %q, expected %q before down", i, result, v.out))
 	}
 
 	pool.DownPeer("1.1.1.1")
 	for i, v := range rtestsAfter {
 		result := pool.Get(v.in)
-		if result != v.out {
-			t.Errorf("%d. got %q, expected %q after down", i, result, v.out)
-		}
+		assert.Equal(t, v.out, result, fmt.Sprintf("%d. got %q, expected %q after down", i, result, v.out))
 	}
 
 	pool.UpPeer("1.1.1.1")
 	for i, v := range rtestsBefore {
 		result := pool.Get(v.in)
-		if result != v.out {
-			t.Errorf("%d. got %q, expected %q after up", i, result, v.out)
-		}
+		assert.Equal(t, v.out, result, fmt.Sprintf("%d. got %q, expected %q after up", i, result, v.out))
 	}
 
 	pool.DownPeer("1.1.1.1")
@@ -157,8 +137,6 @@ func TestDownPeer(t *testing.T) {
 	pool.DownPeer("3.3.3.3")
 	for i, v := range rtestsBefore {
 		result := pool.Get(v.in)
-		if result != "" {
-			t.Errorf("%d. got %q, expected '' after down all", i, result)
-		}
+		assert.Equal(t, "", result, fmt.Sprintf("%d. got %q, expected '' after down all", i, result))
 	}
 }

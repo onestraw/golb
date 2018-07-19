@@ -3,36 +3,28 @@ package roundrobin
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func testGetPeer(t *testing.T, pool *Pool, getCount int, expected string) {
-	result := []string{}
-
 	t.Logf("%v", pool)
+	result := []string{}
 	for i := 0; i < getCount; i++ {
 		peer := pool.Get()
 		result = append(result, peer)
 	}
-
-	result_s := strings.Join(result, ",")
-	if result_s != expected {
-		t.Errorf("expected order: '%s', but got '%s'", expected, result_s)
-	}
+	assert.Equal(t, expected, strings.Join(result, ","))
 }
 
 func testEqualGetPeer(t *testing.T, pool *Pool, getCount int, expected string) {
-	result := []string{}
-
 	t.Logf("%v", pool)
+	result := []string{}
 	for i := 0; i < getCount; i++ {
 		peer := pool.EqualGet()
 		result = append(result, peer)
 	}
-
-	result_s := strings.Join(result, ",")
-	if result_s != expected {
-		t.Errorf("expected order: '%s', but got '%s'", expected, result_s)
-	}
+	assert.Equal(t, expected, strings.Join(result, ","))
 }
 
 func TestGetPeerWithDifferentWeight(t *testing.T) {
@@ -80,9 +72,8 @@ func TestEqualGetPeer(t *testing.T) {
 
 	pool.current = 1<<64 - 1
 	peer := pool.EqualGet()
-	if pool.current != 0 || peer != "a" {
-		t.Errorf("the index should be 0")
-	}
+	assert.Equal(t, uint64(0), pool.current)
+	assert.Equal(t, "a", peer)
 }
 
 func TestDownWithEqualGet(t *testing.T) {
@@ -110,15 +101,13 @@ func TestAddPeer(t *testing.T) {
 		CreatePeer("a", 1),
 	}
 	pool := &Pool{peers: peers}
-
-	if pool.Size() != 1 {
-		t.Errorf("Pool size should be 1")
-	}
+	assert.Equal(t, 1, pool.Size())
 
 	pool.Add("b", 1)
-	if pool.Size() != 2 {
-		t.Errorf("Pool size should be 2")
-	}
+	assert.Equal(t, 2, pool.Size())
+
+	pool.Add("b", 1)
+	assert.Equal(t, 2, pool.Size())
 }
 
 func TestRemovePeer(t *testing.T) {
@@ -127,34 +116,25 @@ func TestRemovePeer(t *testing.T) {
 		CreatePeer("b", 1),
 	}
 	pool := &Pool{peers: peers}
-
-	if pool.Size() != 2 {
-		t.Errorf("Pool size should be 2")
-	}
+	assert.Equal(t, 2, pool.Size())
 
 	pool.Remove("b")
-	if pool.Size() != 1 {
-		t.Errorf("Pool size should be 1")
-	}
+	assert.Equal(t, 1, pool.Size())
+	pool.Remove("b")
+	assert.Equal(t, 1, pool.Size())
 
 	pool.Remove("a")
-	if pool.Size() != 0 {
-		t.Errorf("Pool size should be 0")
-	}
+	assert.Equal(t, 0, pool.Size())
 }
 
 func TestEmpty(t *testing.T) {
 	pool := CreatePool(map[string]int{})
-	if pool.Get() != "" {
-		t.Errorf("Pool is empty")
-	}
-	if pool.EqualGet() != "" {
-		t.Errorf("Pool is empty")
-	}
+	assert.Equal(t, "", pool.Get())
+	assert.Equal(t, "", pool.EqualGet())
+
 	pool.Add("", 1)
-	if pool.Size() != 0 {
-		t.Errorf("Pool is empty")
-	}
+	assert.Equal(t, 0, pool.Size())
+
 	pool.Remove("")
 	t.Logf("%v", pool)
 }
@@ -165,10 +145,7 @@ func TestDownPeer(t *testing.T) {
 		CreatePeer("b", 1),
 	}
 	pool := &Pool{peers: peers}
-
-	if pool.Size() != 2 {
-		t.Errorf("Pool size should be 2")
-	}
+	assert.Equal(t, 2, pool.Size())
 
 	expected_order := "a,b,a,b,a,b"
 	testGetPeer(t, pool, 6, expected_order)

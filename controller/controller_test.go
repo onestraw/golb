@@ -6,71 +6,42 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"syscall"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/onestraw/golb/balancer"
 	"github.com/onestraw/golb/config"
 	"github.com/onestraw/golb/stats"
 )
 
-func load(jsonBody string) (*config.Configuration, error) {
-	f, err := ioutil.TempFile("", "testconf.json")
-	if err != nil {
-		return nil, err
-	}
-	defer syscall.Unlink(f.Name())
-
-	ioutil.WriteFile(f.Name(), []byte(jsonBody), 0644)
-
-	c := &config.Configuration{}
-	err = c.Load(f.Name())
-	if err != nil {
-		return nil, err
-	}
-	return c, nil
-}
-
 func mockBalancer(t *testing.T) *balancer.Balancer {
 	jsonBody := `{"virtual_server":[{"name":"web","address":"127.0.0.1:8082","server_name":"localhost","pool":[{"address":"127.0.0.1:10001","weight":1},{"address":"127.0.0.1:10002","weight":2}],"lb_method":"round-robin"}]}`
-	c, err := load(jsonBody)
-	if err != nil {
-		t.Errorf("Load err= %v", err)
-		return nil
-	}
+	c, err := config.LoadFromString(jsonBody)
+	require.NoError(t, err)
 
 	b, err := balancer.New(c.VServers)
-	if err != nil {
-		t.Errorf("Balancer.New() err= %v", err)
-		return nil
-	}
+	require.NoError(t, err)
+
 	return b
 }
 
 func testCtrlSuit(t *testing.T, h http.Handler, req *http.Request, expectCode int, expectBody string) {
 	rr := httptest.NewRecorder()
-
 	h.ServeHTTP(rr, req)
 
 	resp := rr.Result()
-	if resp.StatusCode != expectCode {
-		t.Errorf("Expect status code %d, but got %d", expectCode, resp.StatusCode)
-		return
-	}
+	assert.Equal(t, expectCode, resp.StatusCode)
 
 	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		t.Errorf("Read body err=%v", err)
-		return
-	}
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	if !bytes.Equal(body, []byte(expectBody)) {
-		t.Errorf("Expect body '%s', but got '%s'", expectBody, string(body))
-	}
+	assert.Equal(t, expectBody, string(body))
 }
 
 func TestListAllVirtualServer(t *testing.T) {
@@ -91,6 +62,11 @@ func TestListVirtualServer(t *testing.T) {
 
 	expect := "127.0.0.1:10001, 127.0.0.1:10002"
 	testCtrlSuit(t, h, req, 200, expect)
+
+	req = mux.SetURLVars(req, map[string]string{
+		"name": "not_exist",
+	})
+	testCtrlSuit(t, h, req, 400, balancer.ErrVirtualServerNotFound.Error())
 }
 
 func TestStatsHandler(t *testing.T) {
@@ -128,31 +104,36 @@ func TestModifyVirtualServerStatus(t *testing.T) {
 	expect := "success"
 	t.Logf("Before enable: %s", b.VServers[0].Status())
 	testCtrlSuit(t, h, req, 200, expect)
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Second)
 	t.Logf("After enable: %s", b.VServers[0].Status())
 
 	// repeat enable
 	req = httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "web",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 	testCtrlSuit(t, h, req, 200, "web is already enabled")
 
 	// disalbe
 	body, _ = json.Marshal(map[string]string{"action": "disable"})
 	req = httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "web",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 	testCtrlSuit(t, h, req, 200, expect)
+
+	// virtual server not exist
+	body, _ = json.Marshal(map[string]string{"action": "enable"})
+	req = httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
+	req = mux.SetURLVars(req, map[string]string{"name": "not_exist"})
+	testCtrlSuit(t, h, req, 400, balancer.ErrVirtualServerNotFound.Error())
 
 	// unknown action
 	body, _ = json.Marshal(map[string]string{})
 	req = httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "web",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 	testCtrlSuit(t, h, req, 400, "Unknown action")
+
+	// bad request
+	req = httptest.NewRequest("POST", "/vs", strings.NewReader(""))
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
+	testCtrlSuit(t, h, req, 400, "EOF")
 }
 
 func TestAddVirtualServer(t *testing.T) {
@@ -163,14 +144,16 @@ func TestAddVirtualServer(t *testing.T) {
 	expect := "Add success"
 
 	testCtrlSuit(t, h, req, 200, expect)
-	if len(b.VServers) != 2 {
-		t.Errorf("Add virtual server fails")
-		return
-	}
+
+	assert.Equal(t, 2, len(b.VServers))
 	vs := b.VServers[1]
-	if vs.Name != "redis" || vs.Address != "127.0.0.1:6379" {
-		t.Errorf("Add virtual server fails")
-	}
+	assert.Equal(t, "redis", vs.Name)
+	assert.Equal(t, "127.0.0.1:6379", vs.Address)
+
+	// test add fail
+	body, _ = json.Marshal(map[string]string{"address": "127.0.0.1:6379"})
+	req = httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
+	testCtrlSuit(t, h, req, 400, balancer.ErrVirtualServerNameEmpty.Error())
 }
 
 func TestAddPoolMember(t *testing.T) {
@@ -185,9 +168,7 @@ func TestAddPoolMember(t *testing.T) {
 
 	testCtrlSuit(t, h, req, 200, expect)
 
-	if b.VServers[0].Pool.Size() != 3 {
-		t.Errorf("Add peer fails")
-	}
+	assert.Equal(t, 3, b.VServers[0].Pool.Size())
 
 	// pool not exist
 	req = httptest.NewRequest("POST", "/vs/web/pool", bytes.NewReader(body))
@@ -209,9 +190,7 @@ func TestDeletePoolMember(t *testing.T) {
 
 	testCtrlSuit(t, h, req, 200, expect)
 
-	if b.VServers[0].Pool.Size() != 1 {
-		t.Errorf("Remove peer fails")
-	}
+	assert.Equal(t, 1, b.VServers[0].Pool.Size())
 
 	req = httptest.NewRequest("DELETE", "/vs/web/pool", bytes.NewReader(body))
 	req = mux.SetURLVars(req, map[string]string{

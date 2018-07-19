@@ -1,11 +1,13 @@
 package retry
 
 import (
-	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testProxyRetry(t *testing.T, status_code int) {
@@ -27,19 +29,13 @@ func testProxyRetry(t *testing.T, status_code int) {
 	H.ServeHTTP(rr, req)
 
 	res := rr.Result()
-	if res.StatusCode != http.StatusOK {
-		t.Errorf("Response Code should be %d, but got %d", http.StatusOK, res.StatusCode)
-	}
+	assert.Equal(t, http.StatusOK, res.StatusCode)
 
 	respBody, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer res.Body.Close()
 
-	if !bytes.Equal(respBody, RESPONSE) {
-		t.Errorf("expected '%s', but got '%s'", RESPONSE, respBody)
-	}
+	assert.Equal(t, respBody, RESPONSE)
 }
 
 func TestProxyRetry500(t *testing.T) {
@@ -69,7 +65,5 @@ func TestProxyRetryFail(t *testing.T) {
 	H.ServeHTTP(rr, req)
 
 	res := rr.Result()
-	if res.StatusCode != http.StatusInternalServerError {
-		t.Errorf("Response Code should be %d, but got %d", http.StatusInternalServerError, res.StatusCode)
-	}
+	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
 }
