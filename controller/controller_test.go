@@ -44,6 +44,12 @@ func testCtrlSuit(t *testing.T, h http.Handler, req *http.Request, expectCode in
 	assert.Equal(t, expectBody, string(body))
 }
 
+func TestController(t *testing.T) {
+	c := New(&config.Controller{Address: "127.0.0.1:6587"})
+	b := mockBalancer(t)
+	c.Run(b)
+}
+
 func TestListAllVirtualServer(t *testing.T) {
 	b := mockBalancer(t)
 	h := ListAllVirtualServer(b)
@@ -56,16 +62,12 @@ func TestListVirtualServer(t *testing.T) {
 	b := mockBalancer(t)
 	h := ListVirtualServer(b)
 	req := httptest.NewRequest("GET", "/vs/web", nil)
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "web",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 
 	expect := "127.0.0.1:10001, 127.0.0.1:10002"
 	testCtrlSuit(t, h, req, 200, expect)
 
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "not_exist",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "not_exist"})
 	testCtrlSuit(t, h, req, 400, balancer.ErrVirtualServerNotFound.Error())
 }
 
@@ -98,9 +100,7 @@ func TestModifyVirtualServerStatus(t *testing.T) {
 	// enable
 	body, _ := json.Marshal(map[string]string{"action": "enable"})
 	req := httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "web",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 	expect := "success"
 	t.Logf("Before enable: %s", b.VServers[0].Status())
 	testCtrlSuit(t, h, req, 200, expect)
@@ -154,28 +154,31 @@ func TestAddVirtualServer(t *testing.T) {
 	body, _ = json.Marshal(map[string]string{"address": "127.0.0.1:6379"})
 	req = httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
 	testCtrlSuit(t, h, req, 400, balancer.ErrVirtualServerNameEmpty.Error())
+
+	// test bad request
+	req = httptest.NewRequest("POST", "/vs", strings.NewReader(""))
+	testCtrlSuit(t, h, req, 400, "EOF")
 }
 
 func TestAddPoolMember(t *testing.T) {
 	b := mockBalancer(t)
 	h := AddPoolMember(b)
-	body, _ := json.Marshal(map[string]interface{}{"address": "127.0.0.1:10005", "weight": 1})
+	body, _ := json.Marshal(map[string]interface{}{"address": "127.0.0.1:10005"})
 	req := httptest.NewRequest("POST", "/vs/web/pool", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "web",
-	})
-	expect := "Add peer success"
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 
-	testCtrlSuit(t, h, req, 200, expect)
-
+	testCtrlSuit(t, h, req, 200, "Add peer success")
 	assert.Equal(t, 3, b.VServers[0].Pool.Size())
 
 	// pool not exist
 	req = httptest.NewRequest("POST", "/vs/web/pool", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "db",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "db"})
 	testCtrlSuit(t, h, req, 400, balancer.ErrVirtualServerNotFound.Error())
+
+	// test bad request
+	req = httptest.NewRequest("POST", "/vs/web/pool", strings.NewReader(""))
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
+	testCtrlSuit(t, h, req, 400, "EOF")
 }
 
 func TestDeletePoolMember(t *testing.T) {
@@ -183,18 +186,17 @@ func TestDeletePoolMember(t *testing.T) {
 	h := DeletePoolMember(b)
 	body, _ := json.Marshal(map[string]string{"address": "127.0.0.1:10001"})
 	req := httptest.NewRequest("DELETE", "/vs/web/pool", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "web",
-	})
-	expect := "Remove peer success"
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 
-	testCtrlSuit(t, h, req, 200, expect)
-
+	testCtrlSuit(t, h, req, 200, "Remove peer success")
 	assert.Equal(t, 1, b.VServers[0].Pool.Size())
 
 	req = httptest.NewRequest("DELETE", "/vs/web/pool", bytes.NewReader(body))
-	req = mux.SetURLVars(req, map[string]string{
-		"name": "db",
-	})
+	req = mux.SetURLVars(req, map[string]string{"name": "db"})
 	testCtrlSuit(t, h, req, 400, balancer.ErrVirtualServerNotFound.Error())
+
+	// test bad request
+	req = httptest.NewRequest("DELETE", "/vs/web/pool", strings.NewReader(""))
+	req = mux.SetURLVars(req, map[string]string{"name": "web"})
+	testCtrlSuit(t, h, req, 400, "EOF")
 }
