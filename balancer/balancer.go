@@ -33,6 +33,7 @@ func (b *Balancer) AddVirtualServer(cvs *config.VirtualServer) error {
 		TLSOpt(cvs.CertFile, cvs.KeyFile),
 		LBMethodOpt(cvs.LBMethod),
 		PoolOpt(cvs.Pool),
+		RetryOpt(true),
 	)
 	if err != nil {
 		return err

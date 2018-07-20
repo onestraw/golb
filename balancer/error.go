@@ -22,7 +22,7 @@ type BalancerError struct {
 
 var (
 	ErrBadRequest       = BalancerError{http.StatusBadRequest, "Reqeust Error"}
-	ErrHostNotMatch     = BalancerError{http.StatusBadGateway, "Host Not Match"}
+	ErrHostNotMatch     = BalancerError{http.StatusBadRequest, "Host Not Match"}
 	ErrPeerNotFound     = BalancerError{http.StatusBadGateway, "Peer Not Found"}
 	ErrInternalBalancer = BalancerError{http.StatusInternalServerError, "Balancer Internal Error"}
 )

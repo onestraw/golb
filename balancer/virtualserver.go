@@ -68,6 +68,8 @@ type VirtualServer struct {
 	// used for fails/timeout
 	pool_lock sync.RWMutex
 
+	retry bool
+
 	ReverseProxy map[string]*httputil.ReverseProxy
 	rp_lock      sync.RWMutex
 
@@ -177,6 +179,13 @@ func PoolOpt(peers []config.Server) VirtualServerOption {
 	}
 }
 
+func RetryOpt(enable bool) VirtualServerOption {
+	return func(vs *VirtualServer) error {
+		vs.retry = enable
+		return nil
+	}
+}
+
 func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	vs := &VirtualServer{
 		Protocol:     PROTO_HTTP,
@@ -184,6 +193,7 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 		LBMethod:     LB_ROUNDROBIN,
 		MaxFails:     DEFAULT_MAXFAILS,
 		FailTimeout:  DEFAULT_FAILTIMEOUT,
+		retry:        false,
 		fails:        make(map[string]int),
 		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
@@ -201,7 +211,10 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	if vs.Address == "" {
 		return nil, AddressOpt("")(vs)
 	}
-	vs.server = &http.Server{Addr: vs.Address, Handler: retry.Retry(vs)}
+	vs.server = &http.Server{Addr: vs.Address, Handler: vs}
+	if vs.retry {
+		vs.server.Handler = retry.Retry(vs)
+	}
 
 	return vs, nil
 }
@@ -226,10 +239,16 @@ func (w *LBResponseWriter) WriteHeader(code int) {
 // ServeHTTP dispatch the request between backend servers
 func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timeBegin := time.Now()
-	statusCode := http.StatusOK
+	rw := &LBResponseWriter{w, http.StatusOK, 0}
+	var peer string
 	defer func() {
+		if peer == "" {
+			peer = "Load Balancer Error"
+		}
+		s.StatsInc(peer, r, rw)
+
 		cost := time.Now().Sub(timeBegin) / time.Millisecond
-		log.Infof("%s - %s %s %s %dms- %d", r.RemoteAddr, r.Method, r.URL, r.Proto, cost, statusCode)
+		log.Infof("%s - %s %s%s %s %dms- %d", r.RemoteAddr, r.Method, r.Host, r.URL, r.Proto, cost, rw.code)
 	}()
 
 	s.RLock()
@@ -237,7 +256,7 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Host != s.ServerName {
 		log.Errorf("Host not match, host=%s", r.Host)
-		WriteError(w, ErrHostNotMatch)
+		WriteError(rw, ErrHostNotMatch)
 		return
 	}
 
@@ -253,10 +272,10 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.pool_lock.Unlock()
 
 	// use client's address as hash key if using consistent-hash method
-	peer := s.Pool.Get(r.RemoteAddr)
+	peer = s.Pool.Get(r.RemoteAddr)
 	if peer == "" {
-		log.Errorf("Get peer failed: %v", ErrPeerNotFound)
-		WriteError(w, ErrPeerNotFound)
+		log.Errorf("Get peer failed: %v", ErrPeerNotFound.ErrMsg)
+		WriteError(rw, ErrPeerNotFound)
 		return
 	}
 
@@ -267,7 +286,7 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		target, err := url.Parse("http://" + peer)
 		if err != nil {
 			log.Errorf("url.Parse peer=%s, error=%v", peer, err)
-			WriteError(w, ErrInternalBalancer)
+			WriteError(rw, ErrInternalBalancer)
 			return
 		}
 		log.Infof("%v", target)
@@ -279,12 +298,8 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		s.rp_lock.Unlock()
 	}
-	rw := &LBResponseWriter{w, 200, 0}
-	rp.ServeHTTP(rw, r)
 
-	// r.Method, r.URL.Path, r.ContentLength, rw.bytes, rw.code
-	s.StatsInc(peer, r, rw)
-	statusCode = rw.code
+	rp.ServeHTTP(rw, r)
 
 	if rw.code/100 == 5 {
 		s.pool_lock.Lock()

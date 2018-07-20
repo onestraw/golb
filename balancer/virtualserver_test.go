@@ -2,8 +2,10 @@ package balancer
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"syscall"
 	"testing"
 	"time"
 
@@ -42,6 +44,9 @@ func TestVirtualServer(t *testing.T) {
 	// test run
 	require.NoError(t, vs.Run())
 	time.Sleep(time.Second)
+	// test repeated run
+	err = vs.Run()
+	assert.Contains(t, err.Error(), "already enabled")
 
 	// test LB
 	result := map[string]int{}
@@ -77,6 +82,9 @@ func TestVirtualServer(t *testing.T) {
 	// test stop
 	require.NoError(t, vs.Stop())
 	assert.Equal(t, STATUS_DISABLED, vs.Status())
+	// test repeated stop
+	err = vs.Stop()
+	assert.Contains(t, err.Error(), "already disabled")
 }
 
 func TestVirtualServerFail(t *testing.T) {
@@ -96,16 +104,65 @@ func TestVirtualServerFail(t *testing.T) {
 	require.NoError(t, vs.Run())
 	time.Sleep(time.Second)
 
+	// test maxfails
+	for i := 0; i < DEFAULT_MAXFAILS; i++ {
+		resp, err := request(addr)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	}
 	resp, err := request(addr)
 	require.NoError(t, err)
+	assert.Equal(t, ErrPeerNotFound.StatusCode, resp.StatusCode)
+	assert.Equal(t, ErrPeerNotFound.ErrMsg, resp.Body)
+
+	// test fail recovery
+	vs.FailTimeout = 1
+	time.Sleep(time.Second)
+	resp, err = request(addr)
+	require.NoError(t, err)
 	assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	assert.NotEqual(t, ErrPeerNotFound.ErrMsg, resp.Body)
+
+	require.NoError(t, vs.Stop())
+	assert.Equal(t, STATUS_DISABLED, vs.Status())
+}
+
+func TestVirtualServerError(t *testing.T) {
+	addr := "127.0.0.1:8085"
+	vs, err := NewVirtualServer(
+		NameOpt("web"),
+		AddressOpt(addr),
+		PoolOpt([]config.Server{}),
+	)
+	require.NoError(t, err)
+	require.NoError(t, vs.Run())
+	time.Sleep(time.Second)
+
+	resp, err := request(addr)
+	require.NoError(t, err)
+	assert.Equal(t, ErrPeerNotFound.StatusCode, resp.StatusCode)
+	assert.Equal(t, ErrPeerNotFound.ErrMsg, resp.Body)
+
+	vs.ServerName = addr
+	resp, err = request(addr)
+	require.NoError(t, err)
+	assert.Equal(t, ErrHostNotMatch.StatusCode, resp.StatusCode)
+	assert.Equal(t, ErrHostNotMatch.ErrMsg, resp.Body)
 
 	require.NoError(t, vs.Stop())
 	assert.Equal(t, STATUS_DISABLED, vs.Status())
 }
 
 func TestOpt(t *testing.T) {
-	vs, err := NewVirtualServer(NameOpt(""))
+	vs, err := NewVirtualServer()
+	assert.Nil(t, vs)
+	assert.Equal(t, ErrVirtualServerNameEmpty, err)
+
+	vs, err = NewVirtualServer(NameOpt("web"))
+	assert.Nil(t, vs)
+	assert.Equal(t, ErrVirtualServerAddressEmpty, err)
+
+	vs, err = NewVirtualServer(NameOpt(""))
 	assert.Nil(t, vs)
 	assert.Equal(t, ErrVirtualServerNameEmpty, err)
 
@@ -129,6 +186,19 @@ func TestOpt(t *testing.T) {
 	assert.Nil(t, vs)
 	assert.Contains(t, err.Error(), "not exist")
 
+	cert, err := ioutil.TempFile("", "temp.pem")
+	key, err := ioutil.TempFile("", "temp.key")
+	require.NoError(t, err)
+	defer syscall.Unlink(cert.Name())
+
+	vs, err = NewVirtualServer(ProtocolOpt("https"), TLSOpt(cert.Name(), ""))
+	assert.Nil(t, vs)
+	assert.Contains(t, err.Error(), "not exist")
+
+	vs, err = NewVirtualServer(NameOpt("web"), AddressOpt(":80"), ProtocolOpt("https"), TLSOpt(cert.Name(), key.Name()))
+	assert.Nil(t, err)
+	assert.NotNil(t, vs)
+
 	vs, err = NewVirtualServer(NameOpt("web"), AddressOpt(":80"), LBMethodOpt(""))
 	require.NoError(t, err)
 	assert.Equal(t, LB_ROUNDROBIN, vs.LBMethod)
@@ -136,4 +206,8 @@ func TestOpt(t *testing.T) {
 	vs, err = NewVirtualServer(LBMethodOpt("hash"))
 	assert.Nil(t, vs)
 	assert.Equal(t, err, ErrNotSupportedMethod)
+
+	vs, err = NewVirtualServer(NameOpt("web"), AddressOpt(":80"), RetryOpt(true))
+	require.NoError(t, err)
+	assert.Equal(t, true, vs.retry)
 }
