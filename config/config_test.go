@@ -32,6 +32,17 @@ func TestLoadFromFile(t *testing.T) {
 	assert.Equal(t, 2, s.Weight)
 }
 
+func TestLoadNotJsonFile(t *testing.T) {
+	f, err := ioutil.TempFile("", "testconf.json")
+	require.NoError(t, err)
+	defer syscall.Unlink(f.Name())
+
+	ioutil.WriteFile(f.Name(), []byte("not json"), 0644)
+	c, err := Load(f.Name())
+	assert.Nil(t, c)
+	assert.NotNil(t, err)
+}
+
 func TestLoadNotExisted(t *testing.T) {
 	c, err := Load("no_file.json")
 	assert.Nil(t, c)
@@ -61,6 +72,12 @@ func TestLoadEmpty(t *testing.T) {
 	c, err := LoadFromString("{}")
 	require.NoError(t, err)
 	t.Logf("%v", c)
+}
+
+func TestLoadNotJsonString(t *testing.T) {
+	c, err := LoadFromString("error")
+	assert.Nil(t, c)
+	assert.NotNil(t, err)
 }
 
 func TestCheckVirtualServerDuplicated(t *testing.T) {
