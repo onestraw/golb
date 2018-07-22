@@ -219,6 +219,54 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	return vs, nil
 }
 
+func (s *VirtualServer) getReverseProxy(peer string) (*httputil.ReverseProxy, error) {
+	s.rp_lock.RLock()
+	rp, ok := s.ReverseProxy[peer]
+	s.rp_lock.RUnlock()
+	if !ok {
+		if !strings.HasPrefix(peer, "http://") {
+			peer = "http://" + peer
+		}
+		target, err := url.Parse(peer)
+		if err != nil {
+			return nil, err
+		}
+		rp = httputil.NewSingleHostReverseProxy(target)
+		s.rp_lock.Lock()
+		s.ReverseProxy[peer] = rp
+		s.rp_lock.Unlock()
+	}
+	return rp, nil
+}
+
+// fail mark the peer down temporarily if the peer fails MaxFails
+func (s *VirtualServer) fail(peer string) {
+	s.pool_lock.Lock()
+	defer s.pool_lock.Unlock()
+
+	s.fails[peer]++
+	if s.fails[peer] >= s.MaxFails {
+		log.Infof("Mark down peer: %s", peer)
+		s.Pool.DownPeer(peer)
+		s.timeout[peer] = time.Now().Unix()
+	}
+}
+
+// recovery mark the peer up after FailTimeout
+func (s *VirtualServer) recovery() {
+	s.pool_lock.Lock()
+	defer s.pool_lock.Unlock()
+
+	now := time.Now().Unix()
+	for k, v := range s.timeout {
+		if s.fails[k] >= s.MaxFails && now-v >= s.FailTimeout {
+			log.Infof("Mark up peer: %s", k)
+			s.Pool.UpPeer(k)
+			s.fails[k] = 0
+		}
+	}
+}
+
 type LBResponseWriter struct {
 	http.ResponseWriter
 	code  int
@@ -240,83 +288,50 @@ func (w *LBResponseWriter) WriteHeader(code int) {
 func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timeBegin := time.Now()
 	rw := &LBResponseWriter{w, http.StatusOK, 0}
-	var peer string
+	peer := ""
 	defer func() {
-		if peer == "" {
-			peer = "Load Balancer Error"
-		}
 		s.StatsInc(peer, r, rw)
-
+		if peer != "" && rw.code/100 == 5 {
+			s.fail(peer)
+		}
 		cost := time.Now().Sub(timeBegin) / time.Millisecond
-		log.Infof("%s - %s %s%s %s %dms- %d", r.RemoteAddr, r.Method, r.Host, r.URL, r.Proto, cost, rw.code)
+		log.Infof("%s - %s %s(%s)%s %s %dms- %d", r.RemoteAddr, r.Method, r.Host, peer, r.URL, r.Proto, cost, rw.code)
 	}()
 
 	s.RLock()
 	defer s.RUnlock()
 
+	s.recovery()
+
+	// check the request’s header field "Host"
 	if r.Host != s.ServerName {
 		log.Errorf("Host not match, host=%s", r.Host)
 		WriteError(rw, ErrHostNotMatch)
 		return
 	}
 
-	s.pool_lock.Lock()
-	now := time.Now().Unix()
-	for k, v := range s.timeout {
-		if s.fails[k] >= s.MaxFails && now-v >= s.FailTimeout {
-			log.Infof("Mark up peer: %s", k)
-			s.Pool.UpPeer(k)
-			s.fails[k] = 0
-		}
-	}
-	s.pool_lock.Unlock()
-
 	// use client's address as hash key if using consistent-hash method
 	peer = s.Pool.Get(r.RemoteAddr)
 	if peer == "" {
-		log.Errorf("Get peer failed: %v", ErrPeerNotFound.ErrMsg)
+		log.Errorf("Get peer err=%v", ErrPeerNotFound.ErrMsg)
 		WriteError(rw, ErrPeerNotFound)
 		return
 	}
 
-	s.rp_lock.RLock()
-	rp, ok := s.ReverseProxy[peer]
-	s.rp_lock.RUnlock()
-	if !ok {
-		target, err := url.Parse("http://" + peer)
-		if err != nil {
-			log.Errorf("url.Parse peer=%s, error=%v", peer, err)
-			WriteError(rw, ErrInternalBalancer)
-			return
-		}
-		log.Infof("%v", target)
-		s.rp_lock.Lock()
-		// double check to avoid that the proxy is created while applying the lock
-		if rp, ok = s.ReverseProxy[peer]; !ok {
-			rp = httputil.NewSingleHostReverseProxy(target)
-			s.ReverseProxy[peer] = rp
-		}
-		s.rp_lock.Unlock()
+	rp, err := s.getReverseProxy(peer)
+	if err != nil {
+		log.Errorf("GetReverseProxy err=%v", err)
+		WriteError(rw, ErrInternalBalancer)
+		return
 	}
 
 	rp.ServeHTTP(rw, r)
-
-	if rw.code/100 == 5 {
-		s.pool_lock.Lock()
-		if _, ok := s.fails[peer]; !ok {
-			s.fails[peer] = 0
-		}
-		s.fails[peer] += 1
-		if s.fails[peer] >= s.MaxFails {
-			log.Infof("Mark down peer: %s", peer)
-			s.Pool.DownPeer(peer)
-			s.timeout[peer] = time.Now().Unix()
-		}
-		s.pool_lock.Unlock()
-	}
 }
 
 func (s *VirtualServer) StatsInc(addr string, r *http.Request, w *LBResponseWriter) {
+	if addr == "" {
+		addr = "Load Balancer Error"
+	}
 	s.ss_lock.RLock()
 	ss, ok := s.ServerStats[addr]
 	s.ss_lock.RUnlock()
