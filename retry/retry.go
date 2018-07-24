@@ -10,28 +10,28 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type WrapResponseWriter struct {
+type wrapResponseWriter struct {
 	http.ResponseWriter
 	buffer *bytes.Buffer
 	code   int
 }
 
-func NewWrapResponseWriter(w http.ResponseWriter) *WrapResponseWriter {
-	return &WrapResponseWriter{
+func newWrapResponseWriter(w http.ResponseWriter) *wrapResponseWriter {
+	return &wrapResponseWriter{
 		ResponseWriter: w,
 		buffer:         bytes.NewBuffer([]byte("")),
 		code:           0,
 	}
 }
 
-func (w *WrapResponseWriter) WriteHeader(statusCode int) {
+func (w *wrapResponseWriter) WriteHeader(statusCode int) {
 	for k := range w.ResponseWriter.Header() {
 		delete(w.ResponseWriter.Header(), k)
 	}
 	w.code = statusCode
 }
 
-func (w *WrapResponseWriter) Write(data []byte) (int, error) {
+func (w *wrapResponseWriter) Write(data []byte) (int, error) {
 	log.Debugf("Write %v, buffer %v", string(data), w.buffer)
 	w.buffer.Reset()
 	return w.buffer.Write(data)
@@ -47,6 +47,7 @@ func requestBody(r *http.Request) ([]byte, error) {
 	return bodyBytes, nil
 }
 
+// TRY is the number of forwarding the request in case error.
 var TRY = 3
 var retryCode = map[int]bool{
 	http.StatusInternalServerError: true,
@@ -59,14 +60,14 @@ func shouldRetry(code int) bool {
 	return retryCode[code]
 }
 
+// Retry buffer the request and resend it in case of getting retryCode.
 func Retry(next http.Handler) http.Handler {
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := requestBody(r)
 		if err != nil {
 			log.Errorf("bufferRequestBody err= %v", err)
 		}
-		ww := NewWrapResponseWriter(w)
+		ww := newWrapResponseWriter(w)
 
 		var count = 1
 		for {

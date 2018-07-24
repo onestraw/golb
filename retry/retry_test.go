@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testProxyRetry(t *testing.T, status_code int) {
+func testProxyRetry(t *testing.T, statusCode int) {
 	var RESPONSE = []byte("message from server")
-	var count_fail = 0
+	var countFail = 0
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		count_fail += 1
-		if count_fail < TRY {
-			t.Logf("%dth, simulate server code %d", count_fail, status_code)
-			w.WriteHeader(status_code)
+		countFail++
+		if countFail < TRY {
+			t.Logf("%dth, simulate server code %d", countFail, statusCode)
+			w.WriteHeader(statusCode)
 		}
 		w.Header().Add("Content-Length", "20")
 		w.Write(RESPONSE)
