@@ -41,6 +41,7 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,14 +57,14 @@ import (
 // Controller provides interface to operate balancer.
 type Controller struct {
 	Address string
-	Auth    *Authentication
+	Auth    *authentication
 }
 
 // New returns a Controller object.
 func New(ctlCfg *config.Controller) *Controller {
 	return &Controller{
 		Address: ctlCfg.Address,
-		Auth:    &Authentication{ctlCfg.Auth.Username, ctlCfg.Auth.Password},
+		Auth:    &authentication{ctlCfg.Auth.Username, ctlCfg.Auth.Password},
 	}
 }
 
@@ -82,6 +83,12 @@ func (c *Controller) Run(balancer *balancer.Balancer) {
 			panic(err)
 		}
 	}()
+}
+
+// writeBadRequest writes the error with 400 to http.ResponseWriter.
+func writeBadRequest(w http.ResponseWriter, err error) {
+	w.WriteHeader(http.StatusBadRequest)
+	w.Write([]byte(err.Error()))
 }
 
 func statsHandler(b *balancer.Balancer) http.Handler {
@@ -113,7 +120,7 @@ func listVirtualServer(b *balancer.Balancer) http.Handler {
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServer err=%v", err)
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 		msg := vs.Pool.String()
@@ -125,6 +132,8 @@ type modifyVirtualServer struct {
 	Action string `json:"action"`
 }
 
+var errUnknownAction = errors.New("Unknown action")
+
 func modifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
@@ -133,7 +142,7 @@ func modifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&req); err != nil {
 			log.Errorf("Decode request err=%v", err)
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 		action := req.Action
@@ -143,7 +152,7 @@ func modifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServer err=%v", err)
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 
@@ -156,8 +165,8 @@ func modifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 				msg = err.Error()
 			}
 		} else {
-			log.Errorf("%v", ErrUnknownAction)
-			WriteError(w, ErrUnknownAction)
+			log.Errorf("%v", errUnknownAction)
+			writeBadRequest(w, errUnknownAction)
 			return
 		}
 
@@ -172,7 +181,7 @@ func addVirtualServer(b *balancer.Balancer) http.Handler {
 		err := decoder.Decode(&vs)
 		if err != nil {
 			log.Errorf("Decode request err=%v", err)
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 
@@ -180,7 +189,7 @@ func addVirtualServer(b *balancer.Balancer) http.Handler {
 		err = b.AddVirtualServer(&vs)
 		if err != nil {
 			log.Errorf("AddVirtualServer err=%v", err)
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 
@@ -206,13 +215,13 @@ func addPoolMember(b *balancer.Balancer) http.Handler {
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServer err=%v", err)
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 
 		server, err := decodeServer(r)
 		if err != nil {
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 
@@ -232,12 +241,12 @@ func deletePoolMember(b *balancer.Balancer) http.Handler {
 		vs, err := b.FindVirtualServer(name)
 		if err != nil {
 			log.Errorf("FindVirtualServer err=%v", err)
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 		server, err := decodeServer(r)
 		if err != nil {
-			WriteBadRequest(w, err)
+			writeBadRequest(w, err)
 			return
 		}
 

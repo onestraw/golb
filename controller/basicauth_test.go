@@ -13,7 +13,7 @@ func testSuit(t *testing.T, username, password string, expectedStatus int) {
 		w.Write([]byte("ok"))
 	})
 
-	authToken := &Authentication{Username: "admin", Password: "admin"}
+	authToken := &authentication{"admin", "admin"}
 	req := httptest.NewRequest("GET", "/", nil)
 	req.SetBasicAuth(username, password)
 
