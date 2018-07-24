@@ -19,7 +19,7 @@ Yet another load balancer
 
 - [Basic configuration and REST API](examples/restapi)
 - [SSL offloading](examples/https)
-- [Service discovery with etcd](examples/sdserver)
+- [Service discovery with etcd](examples/etcd)
 
 ## LICENSE
 
