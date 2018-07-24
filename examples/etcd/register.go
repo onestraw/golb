@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	etcd_client *clientv3.Client
-	serviceKey  string
-	stopSignal  = make(chan bool, 1)
+	etcdClient *clientv3.Client
+	serviceKey string
+	stopSignal = make(chan bool, 1)
 )
 
 // Register add serverAddr to poolName in etcd endpoints
@@ -28,7 +28,7 @@ func Register(prefix, poolName, serverAddr, endpoints string, interval time.Dura
 	if err != nil {
 		return fmt.Errorf("create etcd client failed: %v", err)
 	}
-	etcd_client = client
+	etcdClient = client
 
 	// interval should be less than TTL
 	// it's heartbeat, update the lease every interval before the lease expired
@@ -65,7 +65,7 @@ func Register(prefix, poolName, serverAddr, endpoints string, interval time.Dura
 func UnRegister() error {
 	stopSignal <- true
 	stopSignal = make(chan bool, 1) // just a hack to avoid multi UnRegister deadlock
-	if _, err := etcd_client.Delete(context.Background(), serviceKey); err != nil {
+	if _, err := etcdClient.Delete(context.Background(), serviceKey); err != nil {
 		log.Errorf("unregister %q failed: %s.", serviceKey, err.Error())
 		return err
 	}
