@@ -33,9 +33,9 @@ func TestGetPeerWithDifferentWeight(t *testing.T) {
 		CreatePeer("b", 1),
 		CreatePeer("c", 1),
 	}
-	expected_order := "a,a,b,a,c,a,a"
+	expectedOrder := "a,a,b,a,c,a,a"
 	pool := &Pool{peers: peers}
-	testGetPeer(t, pool, 7, expected_order)
+	testGetPeer(t, pool, 7, expectedOrder)
 }
 
 func TestGetPeerWithSameWeight(t *testing.T) {
@@ -44,9 +44,9 @@ func TestGetPeerWithSameWeight(t *testing.T) {
 		CreatePeer("b", 1),
 		CreatePeer("c", 1),
 	}
-	expected_order := "a,b,c,a,b,c"
+	expectedOrder := "a,b,c,a,b,c"
 	pool := &Pool{peers: peers}
-	testGetPeer(t, pool, 6, expected_order)
+	testGetPeer(t, pool, 6, expectedOrder)
 }
 
 func TestGetPeerWithSameWeightNotOne(t *testing.T) {
@@ -55,9 +55,9 @@ func TestGetPeerWithSameWeightNotOne(t *testing.T) {
 		CreatePeer("b", 2),
 		CreatePeer("c", 2),
 	}
-	expected_order := "a,b,c,a,b,c"
+	expectedOrder := "a,b,c,a,b,c"
 	pool := &Pool{peers: peers}
-	testGetPeer(t, pool, 6, expected_order)
+	testGetPeer(t, pool, 6, expectedOrder)
 }
 
 func TestEqualGetPeer(t *testing.T) {
@@ -147,19 +147,19 @@ func TestDownPeer(t *testing.T) {
 	pool := &Pool{peers: peers}
 	assert.Equal(t, 2, pool.Size())
 
-	expected_order := "a,b,a,b,a,b"
-	testGetPeer(t, pool, 6, expected_order)
+	expectedOrder := "a,b,a,b,a,b"
+	testGetPeer(t, pool, 6, expectedOrder)
 
 	pool.DownPeer("b")
-	expected_order = "a,a,a,a,a,a"
-	testGetPeer(t, pool, 6, expected_order)
+	expectedOrder = "a,a,a,a,a,a"
+	testGetPeer(t, pool, 6, expectedOrder)
 
 	pool.UpPeer("b")
-	expected_order = "a,b,a,b,a,b"
-	testGetPeer(t, pool, 6, expected_order)
+	expectedOrder = "a,b,a,b,a,b"
+	testGetPeer(t, pool, 6, expectedOrder)
 
 	pool.DownPeer("a")
 	pool.DownPeer("b")
-	expected_order = ",,,,,"
-	testGetPeer(t, pool, 6, expected_order)
+	expectedOrder = ",,,,,"
+	testGetPeer(t, pool, 6, expectedOrder)
 }

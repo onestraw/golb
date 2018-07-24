@@ -8,13 +8,13 @@ import (
 	"sync/atomic"
 )
 
-// Peer represents a backend server
+// Peer represents a backend server.
 type Peer struct {
-	addr             string
-	weight           int
-	effective_weight int
-	current_weight   int
-	down             bool
+	addr            string
+	weight          int
+	effectiveWeight int
+	currentWeight   int
+	down            bool
 	sync.RWMutex
 }
 
@@ -22,20 +22,21 @@ func (p *Peer) String() string {
 	p.RLock()
 	defer p.RUnlock()
 	return fmt.Sprintf("%s: (w=%d, ew=%d, cw=%d)",
-		p.addr, p.weight, p.effective_weight, p.current_weight)
+		p.addr, p.weight, p.effectiveWeight, p.currentWeight)
 }
 
+// CreatePeer return a Peer object.
 func CreatePeer(addr string, weight int) *Peer {
 	return &Peer{
-		addr:             addr,
-		weight:           weight,
-		effective_weight: weight,
-		current_weight:   0,
-		down:             false,
+		addr:            addr,
+		weight:          weight,
+		effectiveWeight: weight,
+		currentWeight:   0,
+		down:            false,
 	}
 }
 
-// Pool is a group of Peers, one Peer can not belong to multiple Pool
+// Pool is a group of Peers, one Peer can not belong to multiple Pool.
 type Pool struct {
 	peers   []*Peer
 	current uint64
@@ -54,10 +55,12 @@ func (p *Pool) String() string {
 	return strings.Join(result, ", ")
 }
 
+// Size return the number of the peer.
 func (p *Pool) Size() int {
 	return len(p.peers)
 }
 
+// Add append a peer to the pool if not exists.
 func (p *Pool) Add(addr string, args ...interface{}) {
 	if addr == "" {
 		return
@@ -77,7 +80,7 @@ func (p *Pool) Add(addr string, args ...interface{}) {
 	defer p.Unlock()
 
 	if peer.down {
-		p.downNum += 1
+		p.downNum++
 	}
 	p.peers = append(p.peers, peer)
 }
@@ -100,9 +103,9 @@ func (p *Pool) setPeerStatus(addr string, isDown bool) {
 		if peer.down != isDown {
 			p.Lock()
 			if isDown {
-				p.downNum += 1
+				p.downNum++
 			} else {
-				p.downNum -= 1
+				p.downNum--
 			}
 			p.Unlock()
 
@@ -113,14 +116,17 @@ func (p *Pool) setPeerStatus(addr string, isDown bool) {
 	}
 }
 
+// DownPeer mark the peer down.
 func (p *Pool) DownPeer(addr string) {
 	p.setPeerStatus(addr, true)
 }
 
+// UpPeer mark the peer up.
 func (p *Pool) UpPeer(addr string) {
 	p.setPeerStatus(addr, false)
 }
 
+// Remove removes the peer from the pool.
 func (p *Pool) Remove(addr string) {
 	if addr == "" {
 		return
@@ -131,18 +137,18 @@ func (p *Pool) Remove(addr string) {
 	idx := p.indexOfPeer(addr)
 	if idx >= 0 && idx < p.Size() {
 		if p.peers[idx].down {
-			p.downNum -= 1
+			p.downNum--
 		}
 		p.peers = append(p.peers[:idx], p.peers[idx+1:]...)
 	}
 }
 
-// GetPeer return peer in smooth weighted roundrobin method
+// Get return peer in smooth weighted roundrobin method.
 func (p *Pool) Get(args ...interface{}) string {
 	p.RLock()
 	defer p.RUnlock()
 
-	var best *Peer = nil
+	var best *Peer
 	total := 0
 	for _, peer := range p.peers {
 		if peer.down {
@@ -150,28 +156,28 @@ func (p *Pool) Get(args ...interface{}) string {
 		}
 		peer.Lock()
 
-		total += peer.effective_weight
-		peer.current_weight += peer.effective_weight
+		total += peer.effectiveWeight
+		peer.currentWeight += peer.effectiveWeight
 
-		if peer.effective_weight < peer.weight {
-			peer.effective_weight += 1
+		if peer.effectiveWeight < peer.weight {
+			peer.effectiveWeight++
 		}
 
-		if best == nil || best.current_weight < peer.current_weight {
+		if best == nil || best.currentWeight < peer.currentWeight {
 			best = peer
 		}
 		peer.Unlock()
 	}
 	if best != nil {
 		best.Lock()
-		best.current_weight -= total
+		best.currentWeight -= total
 		best.Unlock()
 		return best.addr
 	}
 	return ""
 }
 
-// EqualGetPeer get peer by turn, without considering weight
+// EqualGet get peer by turn, without considering weight.
 func (p *Pool) EqualGet() string {
 	p.RLock()
 	defer p.RUnlock()
@@ -193,6 +199,7 @@ func (p *Pool) EqualGet() string {
 	return p.EqualGet()
 }
 
+// CreatePool return a Pool object.
 func CreatePool(pairs map[string]int) *Pool {
 	pool := &Pool{
 		current: 0,
