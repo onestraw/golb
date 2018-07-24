@@ -22,20 +22,22 @@ import (
 	"github.com/onestraw/golb/stats"
 )
 
+// constants
 const (
-	LB_ROUNDROBIN    = "round-robin"
-	LB_COSISTENTHASH = "consistent-hash"
-	PROTO_HTTP       = "http"
-	PROTO_HTTPS      = "https"
-	PROTO_GRPC       = "grpc"
-	STATUS_ENABLED   = "running"
-	STATUS_DISABLED  = "stopped"
+	LBRoundRobin     = "round-robin"
+	LBConsistentHash = "consistent-hash"
+	ProtoHTTP        = "http"
+	ProtoHTTPS       = "https"
+	ProtoGRPC        = "grpc"
+	StatusEnabled    = "running"
+	StatusDisabled   = "stopped"
 
-	DEFAULT_SERVERNAME  = "localhost"
-	DEFAULT_FAILTIMEOUT = 7
-	DEFAULT_MAXFAILS    = 2
+	DefaultServerName  = "localhost"
+	DefaultFailTimeout = 7
+	DefaultMaxFails    = 2
 )
 
+// Pooler is a LB method interface.
 type Pooler interface {
 	String() string
 	Size() int
@@ -46,6 +48,7 @@ type Pooler interface {
 	UpPeer(addr string)
 }
 
+// VirtualServer defines a LoadBalancer instance.
 type VirtualServer struct {
 	sync.RWMutex
 	Name       string
@@ -66,23 +69,24 @@ type VirtualServer struct {
 	timeout     map[string]int64
 
 	// used for fails/timeout
-	pool_lock sync.RWMutex
+	poolLock sync.RWMutex
 
 	retry bool
 
 	ReverseProxy map[string]*httputil.ReverseProxy
-	rp_lock      sync.RWMutex
+	rpLock       sync.RWMutex
 
 	ServerStats map[string]*stats.Stats
-	ss_lock     sync.RWMutex
+	ssLock      sync.RWMutex
 
 	server *http.Server
 	status string
 }
 
-type VirtualServerOption func(*VirtualServer) error
+type optSetter func(*VirtualServer) error
 
-func NameOpt(name string) VirtualServerOption {
+// NameOpt returns a function to set name.
+func NameOpt(name string) optSetter {
 	return func(vs *VirtualServer) error {
 		if name == "" {
 			return ErrVirtualServerNameEmpty
@@ -92,7 +96,8 @@ func NameOpt(name string) VirtualServerOption {
 	}
 }
 
-func AddressOpt(addr string) VirtualServerOption {
+// AddressOpt returns a function to set address.
+func AddressOpt(addr string) optSetter {
 	return func(vs *VirtualServer) error {
 		if addr == "" {
 			return ErrVirtualServerAddressEmpty
@@ -102,22 +107,24 @@ func AddressOpt(addr string) VirtualServerOption {
 	}
 }
 
-func ServerNameOpt(serverName string) VirtualServerOption {
+// ServerNameOpt returns a function to set server name.
+func ServerNameOpt(serverName string) optSetter {
 	return func(vs *VirtualServer) error {
 		if serverName == "" {
-			serverName = DEFAULT_SERVERNAME
+			serverName = DefaultServerName
 		}
 		vs.ServerName = serverName
 		return nil
 	}
 }
 
-func ProtocolOpt(proto string) VirtualServerOption {
+// ProtocolOpt returns a function to set protocol.
+func ProtocolOpt(proto string) optSetter {
 	return func(vs *VirtualServer) error {
 		if proto == "" {
-			proto = PROTO_HTTP
+			proto = ProtoHTTP
 		}
-		if proto != PROTO_HTTP && proto != PROTO_HTTPS {
+		if proto != ProtoHTTP && proto != ProtoHTTPS {
 			return ErrNotSupportedProto
 		}
 		vs.Protocol = proto
@@ -125,10 +132,10 @@ func ProtocolOpt(proto string) VirtualServerOption {
 	}
 }
 
-// TLSOpt should be called after ProtocolOpt
-func TLSOpt(certFile, keyFile string) VirtualServerOption {
+// TLSOpt returns a function to set TLS and should be called after ProtocolOpt.
+func TLSOpt(certFile, keyFile string) optSetter {
 	return func(vs *VirtualServer) error {
-		if vs.Protocol != PROTO_HTTPS {
+		if vs.Protocol != ProtoHTTPS {
 			return nil
 		}
 		if _, err := os.Stat(certFile); err != nil {
@@ -144,12 +151,13 @@ func TLSOpt(certFile, keyFile string) VirtualServerOption {
 	}
 }
 
-func LBMethodOpt(method string) VirtualServerOption {
+// LBMethodOpt returns a function to set LBMethod.
+func LBMethodOpt(method string) optSetter {
 	return func(vs *VirtualServer) error {
 		if method == "" {
-			method = LB_ROUNDROBIN
+			method = LBRoundRobin
 		}
-		if method != LB_ROUNDROBIN && method != LB_COSISTENTHASH {
+		if method != LBRoundRobin && method != LBConsistentHash {
 			return ErrNotSupportedMethod
 		}
 		vs.LBMethod = method
@@ -157,16 +165,17 @@ func LBMethodOpt(method string) VirtualServerOption {
 	}
 }
 
-func PoolOpt(peers []config.Server) VirtualServerOption {
+// PoolOpt returns a function to set pool.
+func PoolOpt(peers []config.Server) optSetter {
 	return func(vs *VirtualServer) error {
 		method := vs.LBMethod
-		if method == LB_ROUNDROBIN {
+		if method == LBRoundRobin {
 			pairs := make(map[string]int)
 			for _, peer := range peers {
 				pairs[peer.Address] = peer.Weight
 			}
 			vs.Pool = roundrobin.CreatePool(pairs)
-		} else if method == LB_COSISTENTHASH {
+		} else if method == LBConsistentHash {
 			addrs := make([]string, len(peers))
 			for i, peer := range peers {
 				addrs[i] = peer.Address
@@ -179,26 +188,28 @@ func PoolOpt(peers []config.Server) VirtualServerOption {
 	}
 }
 
-func RetryOpt(enable bool) VirtualServerOption {
+// RetryOpt returns a function to set retry.
+func RetryOpt(enable bool) optSetter {
 	return func(vs *VirtualServer) error {
 		vs.retry = enable
 		return nil
 	}
 }
 
-func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
+// NewVirtualServer returns a VirtualServer object.
+func NewVirtualServer(opts ...optSetter) (*VirtualServer, error) {
 	vs := &VirtualServer{
-		Protocol:     PROTO_HTTP,
-		ServerName:   DEFAULT_SERVERNAME,
-		LBMethod:     LB_ROUNDROBIN,
-		MaxFails:     DEFAULT_MAXFAILS,
-		FailTimeout:  DEFAULT_FAILTIMEOUT,
+		Protocol:     ProtoHTTP,
+		ServerName:   DefaultServerName,
+		LBMethod:     LBRoundRobin,
+		MaxFails:     DefaultMaxFails,
+		FailTimeout:  DefaultFailTimeout,
 		retry:        false,
 		fails:        make(map[string]int),
 		timeout:      make(map[string]int64),
 		ReverseProxy: make(map[string]*httputil.ReverseProxy),
 		ServerStats:  make(map[string]*stats.Stats),
-		status:       STATUS_DISABLED,
+		status:       StatusDisabled,
 	}
 	for _, opt := range opts {
 		if err := opt(vs); err != nil {
@@ -220,9 +231,9 @@ func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 }
 
 func (s *VirtualServer) getReverseProxy(peer string) (*httputil.ReverseProxy, error) {
-	s.rp_lock.RLock()
+	s.rpLock.RLock()
 	rp, ok := s.ReverseProxy[peer]
-	s.rp_lock.RUnlock()
+	s.rpLock.RUnlock()
 	if !ok {
 		if !strings.HasPrefix(peer, "http://") {
 			peer = "http://" + peer
@@ -232,17 +243,17 @@ func (s *VirtualServer) getReverseProxy(peer string) (*httputil.ReverseProxy, er
 			return nil, err
 		}
 		rp = httputil.NewSingleHostReverseProxy(target)
-		s.rp_lock.Lock()
+		s.rpLock.Lock()
 		s.ReverseProxy[peer] = rp
-		s.rp_lock.Unlock()
+		s.rpLock.Unlock()
 	}
 	return rp, nil
 }
 
-// fail mark the peer down temporarily if the peer fails MaxFails
+// fail mark the peer down temporarily if the peer fails MaxFails.
 func (s *VirtualServer) fail(peer string) {
-	s.pool_lock.Lock()
-	defer s.pool_lock.Unlock()
+	s.poolLock.Lock()
+	defer s.poolLock.Unlock()
 
 	s.fails[peer]++
 	if s.fails[peer] >= s.MaxFails {
@@ -252,10 +263,10 @@ func (s *VirtualServer) fail(peer string) {
 	}
 }
 
-// recovery mark the peer up after FailTimeout
+// recovery mark the peer up after FailTimeout.
 func (s *VirtualServer) recovery() {
-	s.pool_lock.Lock()
-	defer s.pool_lock.Unlock()
+	s.poolLock.Lock()
+	defer s.poolLock.Unlock()
 
 	now := time.Now().Unix()
 	for k, v := range s.timeout {
@@ -267,27 +278,27 @@ func (s *VirtualServer) recovery() {
 	}
 }
 
-type LBResponseWriter struct {
+type lbResponseWriter struct {
 	http.ResponseWriter
 	code  int
 	bytes int
 }
 
-func (w *LBResponseWriter) Write(data []byte) (int, error) {
+func (w *lbResponseWriter) Write(data []byte) (int, error) {
 	size, err := w.ResponseWriter.Write(data)
 	w.bytes += size
 	return size, err
 }
 
-func (w *LBResponseWriter) WriteHeader(code int) {
+func (w *lbResponseWriter) WriteHeader(code int) {
 	w.code = code
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// ServeHTTP dispatch the request between backend servers
+// ServeHTTP dispatch the request between backend servers.
 func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	timeBegin := time.Now()
-	rw := &LBResponseWriter{w, http.StatusOK, 0}
+	rw := &lbResponseWriter{w, http.StatusOK, 0}
 	peer := ""
 	defer func() {
 		s.StatsInc(peer, r, rw)
@@ -328,18 +339,19 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rp.ServeHTTP(rw, r)
 }
 
-func (s *VirtualServer) StatsInc(addr string, r *http.Request, w *LBResponseWriter) {
+// StatsInc adds a request info.
+func (s *VirtualServer) StatsInc(addr string, r *http.Request, w *lbResponseWriter) {
 	if addr == "" {
 		addr = "Load Balancer Error"
 	}
-	s.ss_lock.RLock()
+	s.ssLock.RLock()
 	ss, ok := s.ServerStats[addr]
-	s.ss_lock.RUnlock()
+	s.ssLock.RUnlock()
 	if !ok {
-		s.ss_lock.Lock()
+		s.ssLock.Lock()
 		ss = stats.New()
 		s.ServerStats[addr] = ss
-		s.ss_lock.Unlock()
+		s.ssLock.Unlock()
 	}
 	data := &stats.Data{
 		StatusCode: strconv.Itoa(w.code),
@@ -351,9 +363,10 @@ func (s *VirtualServer) StatsInc(addr string, r *http.Request, w *LBResponseWrit
 	ss.Inc(data)
 }
 
+// Stats return the stats info.
 func (s *VirtualServer) Stats() string {
 	keys := []string{}
-	for key, _ := range s.ServerStats {
+	for key := range s.ServerStats {
 		keys = append(keys, key)
 	}
 
@@ -368,23 +381,25 @@ func (s *VirtualServer) Stats() string {
 	return strings.Join(result, "\n")
 }
 
+// AddPeer adds one peer to the pool.
 func (s *VirtualServer) AddPeer(addr string, args ...interface{}) {
 	s.Pool.Add(addr, args...)
 }
 
+// RemovePeer removes the peer from the pool and related.
 func (s *VirtualServer) RemovePeer(addr string) {
-	s.pool_lock.Lock()
+	s.poolLock.Lock()
 	delete(s.fails, addr)
 	delete(s.timeout, addr)
-	s.pool_lock.Unlock()
+	s.poolLock.Unlock()
 
-	s.rp_lock.Lock()
+	s.rpLock.Lock()
 	delete(s.ReverseProxy, addr)
-	s.rp_lock.Unlock()
+	s.rpLock.Unlock()
 
-	s.ss_lock.Lock()
+	s.ssLock.Lock()
 	delete(s.ServerStats, addr)
-	s.ss_lock.Unlock()
+	s.ssLock.Unlock()
 
 	s.Pool.Remove(addr)
 }
@@ -395,32 +410,34 @@ func (s *VirtualServer) statusSwitch(status string) {
 	s.status = status
 }
 
+// Status return the server status.
 func (s *VirtualServer) Status() string {
 	s.RLock()
 	defer s.RUnlock()
 	return s.status
 }
 
-func (s *VirtualServer) ListenAndServe() error {
+func (s *VirtualServer) listenAndServe() error {
 	switch s.Protocol {
-	case PROTO_HTTP:
+	case ProtoHTTP:
 		return s.server.ListenAndServe()
-	case PROTO_HTTPS:
+	case ProtoHTTPS:
 		return s.server.ListenAndServeTLS(s.CertFile, s.KeyFile)
 	}
 	return ErrNotSupportedProto
 }
 
+// Run starts the server.
 func (s *VirtualServer) Run() error {
-	if s.Status() == STATUS_ENABLED {
+	if s.Status() == StatusEnabled {
 		return fmt.Errorf("%s is already enabled", s.Name)
 	}
 
 	log.Infof("Starting [%s], listen %s, proto %s, method %s, pool %v",
 		s.Name, s.Address, s.Protocol, s.LBMethod, s.Pool)
 	go func() {
-		s.statusSwitch(STATUS_ENABLED)
-		err := s.ListenAndServe()
+		s.statusSwitch(StatusEnabled)
+		err := s.listenAndServe()
 		if err != nil {
 			log.Errorf("%s ListenAndServe error=%v", s.Name, err)
 		}
@@ -429,8 +446,9 @@ func (s *VirtualServer) Run() error {
 	return nil
 }
 
+// Stop stops the server.
 func (s *VirtualServer) Stop() error {
-	if s.Status() == STATUS_DISABLED {
+	if s.Status() == StatusDisabled {
 		return fmt.Errorf("%s is already disabled", s.Name)
 	}
 
@@ -438,6 +456,6 @@ func (s *VirtualServer) Stop() error {
 	if err := s.server.Shutdown(context.Background()); err != nil {
 		return fmt.Errorf("%s Shutdown error=%v", s.Name, err)
 	}
-	s.statusSwitch(STATUS_DISABLED)
+	s.statusSwitch(StatusDisabled)
 	return nil
 }

@@ -6,11 +6,13 @@ import (
 	"github.com/onestraw/golb/config"
 )
 
+// Balancer is a set of VirtualServers.
 type Balancer struct {
 	sync.RWMutex
 	VServers []*VirtualServer
 }
 
+// New returns a Balancer object.
 func New(vss []config.VirtualServer) (*Balancer, error) {
 	b := &Balancer{
 		VServers: []*VirtualServer{},
@@ -24,6 +26,7 @@ func New(vss []config.VirtualServer) (*Balancer, error) {
 	return b, nil
 }
 
+// AddVirtualServer loads from config.VirtualServer.
 func (b *Balancer) AddVirtualServer(cvs *config.VirtualServer) error {
 	vs, err := NewVirtualServer(
 		NameOpt(cvs.Name),
@@ -46,6 +49,7 @@ func (b *Balancer) AddVirtualServer(cvs *config.VirtualServer) error {
 	return nil
 }
 
+// FindVirtualServer search b.VServers by name.
 func (b *Balancer) FindVirtualServer(name string) (*VirtualServer, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -57,6 +61,7 @@ func (b *Balancer) FindVirtualServer(name string) (*VirtualServer, error) {
 	return nil, ErrVirtualServerNotFound
 }
 
+// Run starts all VirtualServers.
 func (b *Balancer) Run() error {
 	for _, vs := range b.VServers {
 		if err := vs.Run(); err != nil {
@@ -66,6 +71,7 @@ func (b *Balancer) Run() error {
 	return nil
 }
 
+// Stop stops all VirtualServers.
 func (b *Balancer) Stop() error {
 	for _, vs := range b.VServers {
 		if err := vs.Stop(); err != nil {

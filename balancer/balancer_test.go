@@ -25,8 +25,8 @@ type Response struct {
 
 func request(addr string) (*Response, error) {
 	client := &http.Client{}
-	proxyUrl := fmt.Sprintf("http://%s/", addr)
-	req, err := http.NewRequest("GET", proxyUrl, nil)
+	proxyURL := fmt.Sprintf("http://%s/", addr)
+	req, err := http.NewRequest("GET", proxyURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -75,11 +75,11 @@ func TestBalancer(t *testing.T) {
 	//because goroutine in vs.Run() maybe unfinished, vs.status is unpredictable
 	//t.Logf("balancer.VServers[0]: %v", b.VServers[0])
 	result := map[string]int{}
-	for i := 0; i < 10; i += 1 {
+	for i := 0; i < 10; i++ {
 		resp, err := request(proxyAddr)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		result[resp.Body] += 1
+		result[resp.Body]++
 	}
 	assert.Equal(t, 5, result["s1"])
 	assert.Equal(t, 5, result["s2"])

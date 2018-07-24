@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// Known errors.
 var (
 	ErrNotSupportedMethod          = errors.New("Not supported LB method")
 	ErrNotSupportedProto           = errors.New("Not supported Protocol")
@@ -15,19 +16,25 @@ var (
 	ErrVirtualServerNotFound       = errors.New("Virtaul Server Not Found")
 )
 
-type BalancerError struct {
+type balancerError struct {
 	StatusCode int
 	ErrMsg     string
 }
 
+func (e *balancerError) Error() string {
+	return e.ErrMsg
+}
+
+// Known balancerError.
 var (
-	ErrBadRequest       = BalancerError{http.StatusBadRequest, "Reqeust Error"}
-	ErrHostNotMatch     = BalancerError{http.StatusBadRequest, "Host Not Match"}
-	ErrPeerNotFound     = BalancerError{http.StatusBadGateway, "Peer Not Found"}
-	ErrInternalBalancer = BalancerError{http.StatusInternalServerError, "Balancer Internal Error"}
+	ErrBadRequest       = &balancerError{http.StatusBadRequest, "Reqeust Error"}
+	ErrHostNotMatch     = &balancerError{http.StatusBadRequest, "Host Not Match"}
+	ErrPeerNotFound     = &balancerError{http.StatusBadGateway, "Peer Not Found"}
+	ErrInternalBalancer = &balancerError{http.StatusInternalServerError, "Balancer Internal Error"}
 )
 
-func WriteError(w http.ResponseWriter, err BalancerError) {
+// WriteError writes balancerError to http.ResponseWriter.
+func WriteError(w http.ResponseWriter, err *balancerError) {
 	w.WriteHeader(err.StatusCode)
 	w.Write([]byte(err.ErrMsg))
 }

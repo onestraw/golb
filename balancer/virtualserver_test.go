@@ -50,11 +50,11 @@ func TestVirtualServer(t *testing.T) {
 
 	// test LB
 	result := map[string]int{}
-	for i := 0; i < 10; i += 1 {
+	for i := 0; i < 10; i++ {
 		resp, err := request(VSAddr)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		result[resp.Body] += 1
+		result[resp.Body]++
 	}
 	assert.Equal(t, 5, result["s1"])
 	assert.Equal(t, 5, result["s2"])
@@ -81,7 +81,7 @@ func TestVirtualServer(t *testing.T) {
 
 	// test stop
 	require.NoError(t, vs.Stop())
-	assert.Equal(t, STATUS_DISABLED, vs.Status())
+	assert.Equal(t, StatusDisabled, vs.Status())
 	// test repeated stop
 	err = vs.Stop()
 	assert.Contains(t, err.Error(), "already disabled")
@@ -105,7 +105,7 @@ func TestVirtualServerFail(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// test maxfails
-	for i := 0; i < DEFAULT_MAXFAILS; i++ {
+	for i := 0; i < DefaultMaxFails; i++ {
 		resp, err := request(addr)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
@@ -124,7 +124,7 @@ func TestVirtualServerFail(t *testing.T) {
 	assert.NotEqual(t, ErrPeerNotFound.ErrMsg, resp.Body)
 
 	require.NoError(t, vs.Stop())
-	assert.Equal(t, STATUS_DISABLED, vs.Status())
+	assert.Equal(t, StatusDisabled, vs.Status())
 }
 
 func TestVirtualServerError(t *testing.T) {
@@ -150,7 +150,7 @@ func TestVirtualServerError(t *testing.T) {
 	assert.Equal(t, ErrHostNotMatch.ErrMsg, resp.Body)
 
 	require.NoError(t, vs.Stop())
-	assert.Equal(t, STATUS_DISABLED, vs.Status())
+	assert.Equal(t, StatusDisabled, vs.Status())
 }
 
 func TestOpt(t *testing.T) {
@@ -172,11 +172,11 @@ func TestOpt(t *testing.T) {
 
 	vs, err = NewVirtualServer(NameOpt("web"), AddressOpt(":80"), ServerNameOpt(""))
 	require.NoError(t, err)
-	assert.Equal(t, DEFAULT_SERVERNAME, vs.ServerName)
+	assert.Equal(t, DefaultServerName, vs.ServerName)
 
 	vs, err = NewVirtualServer(NameOpt("web"), AddressOpt(":80"), ProtocolOpt(""))
 	require.NoError(t, err)
-	assert.Equal(t, PROTO_HTTP, vs.Protocol)
+	assert.Equal(t, ProtoHTTP, vs.Protocol)
 
 	vs, err = NewVirtualServer(ProtocolOpt("grpc"))
 	require.Nil(t, vs)
@@ -201,7 +201,7 @@ func TestOpt(t *testing.T) {
 
 	vs, err = NewVirtualServer(NameOpt("web"), AddressOpt(":80"), LBMethodOpt(""))
 	require.NoError(t, err)
-	assert.Equal(t, LB_ROUNDROBIN, vs.LBMethod)
+	assert.Equal(t, LBRoundRobin, vs.LBMethod)
 
 	vs, err = NewVirtualServer(LBMethodOpt("hash"))
 	assert.Nil(t, vs)
