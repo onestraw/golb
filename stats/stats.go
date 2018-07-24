@@ -7,6 +7,7 @@ import (
 	"sync"
 )
 
+// Stats is the data container.
 type Stats struct {
 	sync.RWMutex
 	StatusCode map[string]uint64
@@ -16,6 +17,7 @@ type Stats struct {
 	OutBytes   uint64
 }
 
+// New returns a Stats object.
 func New() *Stats {
 	return &Stats{
 		StatusCode: map[string]uint64{},
@@ -26,6 +28,7 @@ func New() *Stats {
 	}
 }
 
+// Data is used for holding one record.
 type Data struct {
 	StatusCode string
 	Method     string
@@ -34,20 +37,21 @@ type Data struct {
 	OutBytes   uint64
 }
 
+// Inc adds the data.
 func (s *Stats) Inc(d *Data) {
 	s.Lock()
 	defer s.Unlock()
 
-	s.StatusCode[d.StatusCode] += 1
-	s.Method[d.Method] += 1
-	s.Path[d.Path] += 1
+	s.StatusCode[d.StatusCode]++
+	s.Method[d.Method]++
+	s.Path[d.Path]++
 	s.InBytes += d.InBytes
 	s.OutBytes += d.OutBytes
 }
 
 func sortedMapString(dict map[string]uint64) string {
 	keys := []string{}
-	for key, _ := range dict {
+	for key := range dict {
 		keys = append(keys, key)
 	}
 
@@ -60,6 +64,7 @@ func sortedMapString(dict map[string]uint64) string {
 	return strings.Join(result, ", ")
 }
 
+// Stats key name.
 const (
 	STATUS   = "status_code"
 	METHOD   = "method"
