@@ -1,4 +1,4 @@
-// package chash provides consistent hash balancing
+// Package chash provides consistent hash balancing
 //
 // "Consistent hashing can guarantee that when a cache machine is removed,
 // only the objects cached in it will be rehashed; when a new cache machine

@@ -8,12 +8,14 @@ import (
 	"sync"
 )
 
+// Peer defines a single server.
 type Peer struct {
 	sync.RWMutex
 	addr string
 	down bool
 }
 
+// Pool is a set of Peers.
 type Pool struct {
 	sync.RWMutex
 	replica      int
@@ -23,6 +25,7 @@ type Pool struct {
 	downNum      int
 }
 
+// New returns a Pool object.
 func New() *Pool {
 	return &Pool{
 		replica:      20,
@@ -47,19 +50,21 @@ func (p *Pool) String() string {
 	p.RLock()
 	defer p.RUnlock()
 	result := []string{}
-	for key, _ := range p.nodes {
+	for key := range p.nodes {
 		result = append(result, key)
 	}
 	sort.Strings(result)
 	return strings.Join(result, ", ")
 }
 
+// Size return the number of peers.
 func (p *Pool) Size() int {
 	p.RLock()
 	defer p.RUnlock()
 	return len(p.sortedHashes) / p.replica
 }
 
+// Add adds a peer by address.
 func (p *Pool) Add(addr string, args ...interface{}) {
 	p.Lock()
 	defer p.Unlock()
@@ -84,6 +89,7 @@ func (p *Pool) Add(addr string, args ...interface{}) {
 	})
 }
 
+// Remove deletes a peer by address.
 func (p *Pool) Remove(peerAddr string) {
 	p.Lock()
 	defer p.Unlock()
@@ -103,7 +109,7 @@ func (p *Pool) Remove(peerAddr string) {
 	for i := 0; i < p.replica; i++ {
 		h := p.hash(p.vKey(peerAddr, i))
 		if p.vNodes[h].down {
-			p.downNum -= 1
+			p.downNum--
 		}
 		delete(p.vNodes, h)
 		deleteSortedHashes(h)
@@ -122,9 +128,9 @@ func (p *Pool) setPeerStatus(peerAddr string, isDown bool) {
 	peer := p.vNodes[h]
 	if peer.down != isDown {
 		if isDown {
-			p.downNum += 1
+			p.downNum++
 		} else {
-			p.downNum -= 1
+			p.downNum--
 		}
 		peer.Lock()
 		peer.down = isDown
@@ -132,10 +138,12 @@ func (p *Pool) setPeerStatus(peerAddr string, isDown bool) {
 	}
 }
 
+// DownPeer mark the peer down.
 func (p *Pool) DownPeer(addr string) {
 	p.setPeerStatus(addr, true)
 }
 
+// UpPeer mark the peer up.
 func (p *Pool) UpPeer(addr string) {
 	p.setPeerStatus(addr, false)
 }
@@ -169,6 +177,7 @@ func (p *Pool) Get(args ...interface{}) string {
 	return p.vNodes[p.sortedHashes[idx]].addr
 }
 
+// CreatePool returns a Pool object.
 func CreatePool(addrs []string) *Pool {
 	pool := New()
 	for _, addr := range addrs {
