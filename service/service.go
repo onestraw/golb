@@ -13,12 +13,14 @@ import (
 	sd "github.com/onestraw/golb/discovery"
 )
 
+// Service is the collection of LB's components.
 type Service struct {
 	discovery  *sd.ServiceDiscovery
 	controller *controller.Controller
 	balancer   *balancer.Balancer
 }
 
+// New returns a Service object.
 func New(configFile string) (*Service, error) {
 	c, err := config.Load(configFile)
 	if err != nil {
@@ -47,6 +49,7 @@ func New(configFile string) (*Service, error) {
 	}, nil
 }
 
+// Run starts the LB service.
 func (s *Service) Run() error {
 	log.Infof("Starting...")
 	sigC := make(chan os.Signal)
