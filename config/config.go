@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+// Configuration error.
 var (
 	ErrVirtualServerDuplicated   = errors.New("Vritual Server Duplicated")
 	ErrPoolMemberDuplicated      = errors.New("Pool Member Duplicated")
@@ -14,11 +15,13 @@ var (
 	ErrVirtualServerAddressEmpty = errors.New("Vritual Server Address is not specified")
 )
 
+// Server configuration.
 type Server struct {
 	Address string `json:"address"`
 	Weight  int    `json:"weight"`
 }
 
+// VirtualServer configuration.
 type VirtualServer struct {
 	Name       string   `json:"name"`
 	Address    string   `json:"address"`
@@ -30,16 +33,19 @@ type VirtualServer struct {
 	Pool       []Server `json:"pool"`
 }
 
+// Authentication configuration.
 type Authentication struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
+// Controller configuration.
 type Controller struct {
 	Address string         `json:"address"`
 	Auth    Authentication `json:"auth"`
 }
 
+// ServiceDiscovery configuration.
 type ServiceDiscovery struct {
 	Type          string `json:"type"`
 	Cluster       string `json:"cluster"`
@@ -49,12 +55,14 @@ type ServiceDiscovery struct {
 	TrustedCAFile string `json:"trusted_ca_file"`
 }
 
+// Configuration is the whole json configuration.
 type Configuration struct {
 	ServiceDiscovery ServiceDiscovery `json:"service_discovery"`
 	Controller       Controller       `json:"controller"`
 	VServers         []VirtualServer  `json:"virtual_server"`
 }
 
+// Load reads the configFile and returns a Configuration object.
 func Load(configFile string) (*Configuration, error) {
 	file, err := os.Open(configFile)
 	if err != nil {
@@ -73,6 +81,7 @@ func Load(configFile string) (*Configuration, error) {
 	return c, nil
 }
 
+// LoadFromString returns a Configuration object.
 func LoadFromString(config string) (*Configuration, error) {
 	var err error
 	c := &Configuration{}
@@ -99,18 +108,16 @@ func (c *Configuration) check() error {
 
 		if _, ok := set[vs.Name]; ok {
 			return ErrVirtualServerDuplicated
-		} else {
-			set[vs.Name] = true
 		}
+		set[vs.Name] = true
 
 		if len(vs.Pool) > 1 {
 			pset := make(map[string]bool)
 			for _, p := range vs.Pool {
 				if _, ok := pset[p.Address]; ok {
 					return ErrPoolMemberDuplicated
-				} else {
-					pset[p.Address] = true
 				}
+				pset[p.Address] = true
 			}
 		}
 	}
