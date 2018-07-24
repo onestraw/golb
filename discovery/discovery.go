@@ -11,6 +11,7 @@ import (
 	"github.com/onestraw/golb/discovery/etcd"
 )
 
+// ServiceDiscovery provides meta data describling a discovery config.
 type ServiceDiscovery struct {
 	Enabled       bool
 	Type          string
@@ -21,7 +22,8 @@ type ServiceDiscovery struct {
 	TrustedCAFile string
 }
 
-func New(opts ...ServiceDiscoveryOption) (*ServiceDiscovery, error) {
+// New returns a ServiceDiscovery object.
+func New(opts ...optSetter) (*ServiceDiscovery, error) {
 	sd := &ServiceDiscovery{Enabled: false}
 	for _, opt := range opts {
 		if err := opt(sd); err != nil {
@@ -32,9 +34,10 @@ func New(opts ...ServiceDiscoveryOption) (*ServiceDiscovery, error) {
 	return sd, nil
 }
 
-type ServiceDiscoveryOption func(*ServiceDiscovery) error
+type optSetter func(*ServiceDiscovery) error
 
-func TypeOpt(t string) ServiceDiscoveryOption {
+// TypeOpt return a function to set ServiceDiscovery type.
+func TypeOpt(t string) optSetter {
 	return func(sd *ServiceDiscovery) error {
 		if t != "etcd" {
 			return fmt.Errorf("service discovery type %q currently not supported", t)
@@ -44,7 +47,8 @@ func TypeOpt(t string) ServiceDiscoveryOption {
 	}
 }
 
-func ClusterOpt(c string) ServiceDiscoveryOption {
+// ClusterOpt return a function to set ServiceDiscovery cluster address.
+func ClusterOpt(c string) optSetter {
 	return func(sd *ServiceDiscovery) error {
 		if c == "" {
 			return fmt.Errorf("Cluster can not be empty")
@@ -54,7 +58,8 @@ func ClusterOpt(c string) ServiceDiscoveryOption {
 	}
 }
 
-func PrefixOpt(p string) ServiceDiscoveryOption {
+// PrefixOpt return a function to set key prefix.
+func PrefixOpt(p string) optSetter {
 	return func(sd *ServiceDiscovery) error {
 		p = strings.TrimSuffix(p, "/")
 		if p == "" {
@@ -70,7 +75,9 @@ func PrefixOpt(p string) ServiceDiscoveryOption {
 		return nil
 	}
 }
-func SecurityOpt(certFile, keyFile, trustedCAFile string) ServiceDiscoveryOption {
+
+// SecurityOpt return a function to set tls config.
+func SecurityOpt(certFile, keyFile, trustedCAFile string) optSetter {
 	return func(sd *ServiceDiscovery) error {
 		if certFile == "" && keyFile == "" {
 			log.Infof("Service discovery security (https) is disabled")
@@ -89,6 +96,7 @@ func SecurityOpt(certFile, keyFile, trustedCAFile string) ServiceDiscoveryOption
 	}
 }
 
+// Run starts the ServiceDiscovery service.
 func (sd *ServiceDiscovery) Run(balancer *balancer.Balancer) {
 	if !sd.Enabled {
 		log.Infof("ServiceDiscovery is not enabled")

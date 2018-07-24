@@ -30,12 +30,14 @@ import (
 	"github.com/onestraw/golb/balancer"
 )
 
-type EtcdClient struct {
+// Client wraps a etcd client.
+type Client struct {
 	prefix string
 	cli    *clientv3.Client
 }
 
-func New(endpoints, prefix, certFile, keyFile, trustedCAFile string) (*EtcdClient, error) {
+// New returns a Client object.
+func New(endpoints, prefix, certFile, keyFile, trustedCAFile string) (*Client, error) {
 	var err error
 	var tlsConfig *tls.Config
 	if certFile != "" && keyFile != "" {
@@ -58,7 +60,7 @@ func New(endpoints, prefix, certFile, keyFile, trustedCAFile string) (*EtcdClien
 		return nil, err
 	}
 
-	return &EtcdClient{
+	return &Client{
 		prefix: prefix,
 		cli:    cli,
 	}, nil
@@ -73,10 +75,11 @@ type session struct {
 	peer     string
 }
 
+// key label
 const (
-	VS_PREFIX     = "virtualserver"
-	POOL_PREFIX   = "pool"
-	ADDRESS_LABEL = "address"
+	VSPrefix     = "virtualserver"
+	PoolPrefix   = "pool"
+	AddressLabel = "address"
 )
 
 func newSession(ev *clientv3.Event) (*session, error) {
@@ -88,7 +91,7 @@ func newSession(ev *clientv3.Event) (*session, error) {
 	s.rawValue = string(ev.Kv.Value)
 
 	keys := strings.Split(s.rawKey, "/")
-	if len(keys) != 7 || keys[2] != VS_PREFIX || keys[4] != POOL_PREFIX || keys[6] != ADDRESS_LABEL {
+	if len(keys) != 7 || keys[2] != VSPrefix || keys[4] != PoolPrefix || keys[6] != AddressLabel {
 		return nil, fmt.Errorf("unidentified key: %q", s.rawKey)
 	}
 
@@ -100,37 +103,38 @@ func newSession(ev *clientv3.Event) (*session, error) {
 	return s, nil
 }
 
-func (ec *EtcdClient) Run(balancer *balancer.Balancer) {
+// Run traps into a dead loop to watch and update key changes.
+func (c *Client) Run(balancer *balancer.Balancer) {
 	log.Infof(`Currently we only support add/remove peer in virtualserver, the key format:
 	/<prefix>/virtualserver/<virtualserver_name>/pool/<peer_address>/address`)
 
 	// a. read the existing key
-	resp, err := ec.cli.Get(context.Background(), ec.prefix, clientv3.WithPrefix())
+	resp, err := c.cli.Get(context.Background(), c.prefix, clientv3.WithPrefix())
 	if err != nil {
-		log.Errorf("Get %q err=%v", ec.prefix, err)
+		log.Errorf("Get %q err=%v", c.prefix, err)
 	} else {
 		for _, kv := range resp.Kvs {
 			ev := &clientv3.Event{Kv: kv, Type: mvccpb.PUT}
-			if err := ec.dispatch(balancer, ev); err != nil {
+			if err := c.dispatch(balancer, ev); err != nil {
 				log.Errorf("handle '%v' err=%v", ev, err)
 			}
 		}
 	}
 	// b. watch the updates
+	defer c.cli.Close()
 	for {
-		rch := ec.cli.Watch(context.Background(), ec.prefix, clientv3.WithPrefix())
+		rch := c.cli.Watch(context.Background(), c.prefix, clientv3.WithPrefix())
 		for wresp := range rch {
 			for _, ev := range wresp.Events {
-				if err := ec.dispatch(balancer, ev); err != nil {
+				if err := c.dispatch(balancer, ev); err != nil {
 					log.Errorf("handle '%v' err=%v", ev, err)
 				}
 			}
 		}
 	}
-	ec.cli.Close()
 }
 
-func (ec *EtcdClient) dispatch(balancer *balancer.Balancer, ev *clientv3.Event) error {
+func (c *Client) dispatch(balancer *balancer.Balancer, ev *clientv3.Event) error {
 	log.Infof("%s %q : %q", ev.Type, ev.Kv.Key, ev.Kv.Value)
 	s, err := newSession(ev)
 	if err != nil {
