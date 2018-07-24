@@ -1,4 +1,4 @@
-// package controller provides REST API to configure balancer
+// Package controller provides REST API to configure balancer
 //
 // controller API
 //
@@ -53,11 +53,13 @@ import (
 	"github.com/onestraw/golb/config"
 )
 
+// Controller provides interface to operate balancer.
 type Controller struct {
 	Address string
 	Auth    *Authentication
 }
 
+// New returns a Controller object.
 func New(ctlCfg *config.Controller) *Controller {
 	return &Controller{
 		Address: ctlCfg.Address,
@@ -65,15 +67,16 @@ func New(ctlCfg *config.Controller) *Controller {
 	}
 }
 
+// Run starts the controller.
 func (c *Controller) Run(balancer *balancer.Balancer) {
 	r := mux.NewRouter()
-	r.Handle("/stats", &StatsHandler{balancer}).Methods("GET")
-	r.Handle("/vs", AddVirtualServer(balancer)).Methods("POST")
-	r.Handle("/vs", ListAllVirtualServer(balancer)).Methods("GET")
-	r.Handle("/vs/{name}", ModifyVirtualServerStatus(balancer)).Methods("POST")
-	r.Handle("/vs/{name}", ListVirtualServer(balancer)).Methods("GET")
-	r.Handle("/vs/{name}/pool", AddPoolMember(balancer)).Methods("POST")
-	r.Handle("/vs/{name}/pool", DeletePoolMember(balancer)).Methods("DELETE")
+	r.Handle("/stats", statsHandler(balancer)).Methods("GET")
+	r.Handle("/vs", addVirtualServer(balancer)).Methods("POST")
+	r.Handle("/vs", listAllVirtualServer(balancer)).Methods("GET")
+	r.Handle("/vs/{name}", modifyVirtualServerStatus(balancer)).Methods("POST")
+	r.Handle("/vs/{name}", listVirtualServer(balancer)).Methods("GET")
+	r.Handle("/vs/{name}/pool", addPoolMember(balancer)).Methods("POST")
+	r.Handle("/vs/{name}/pool", deletePoolMember(balancer)).Methods("DELETE")
 	go func() {
 		if err := http.ListenAndServe(c.Address, BasicAuth(c.Auth)(r)); err != nil {
 			panic(err)
@@ -81,21 +84,19 @@ func (c *Controller) Run(balancer *balancer.Balancer) {
 	}()
 }
 
-type StatsHandler struct {
-	balancer *balancer.Balancer
+func statsHandler(b *balancer.Balancer) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		result := []string{}
+		for _, vs := range b.VServers {
+			s := vs.Stats()
+			log.Infof(s)
+			result = append(result, s)
+		}
+		io.WriteString(w, strings.Join(result, "\n"))
+	})
 }
 
-func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	result := []string{}
-	for _, vs := range h.balancer.VServers {
-		s := vs.Stats()
-		log.Infof(s)
-		result = append(result, s)
-	}
-	io.WriteString(w, strings.Join(result, "\n"))
-}
-
-func ListAllVirtualServer(b *balancer.Balancer) http.Handler {
+func listAllVirtualServer(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for _, vs := range b.VServers {
 			data := fmt.Sprintf("Name:%s, Address:%s, Status:%s, Pool:\n%s\n\n",
@@ -105,7 +106,7 @@ func ListAllVirtualServer(b *balancer.Balancer) http.Handler {
 	})
 }
 
-func ListVirtualServer(b *balancer.Balancer) http.Handler {
+func listVirtualServer(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]
@@ -120,15 +121,15 @@ func ListVirtualServer(b *balancer.Balancer) http.Handler {
 	})
 }
 
-type ModifyVirtualServer struct {
+type modifyVirtualServer struct {
 	Action string `json:"action"`
 }
 
-func ModifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
+func modifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]
-		var req ModifyVirtualServer
+		var req modifyVirtualServer
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&req); err != nil {
 			log.Errorf("Decode request err=%v", err)
@@ -164,7 +165,7 @@ func ModifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 	})
 }
 
-func AddVirtualServer(b *balancer.Balancer) http.Handler {
+func addVirtualServer(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var vs config.VirtualServer
 		decoder := json.NewDecoder(r.Body)
@@ -198,7 +199,7 @@ func decodeServer(r *http.Request) (*config.Server, error) {
 	return &server, nil
 }
 
-func AddPoolMember(b *balancer.Balancer) http.Handler {
+func addPoolMember(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]
@@ -224,7 +225,7 @@ func AddPoolMember(b *balancer.Balancer) http.Handler {
 	})
 }
 
-func DeletePoolMember(b *balancer.Balancer) http.Handler {
+func deletePoolMember(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		name := vars["name"]

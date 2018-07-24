@@ -52,7 +52,7 @@ func TestController(t *testing.T) {
 
 func TestListAllVirtualServer(t *testing.T) {
 	b := mockBalancer(t)
-	h := ListAllVirtualServer(b)
+	h := listAllVirtualServer(b)
 	req := httptest.NewRequest("GET", "/vs", nil)
 	expect := "Name:web, Address:127.0.0.1:8082, Status:stopped, Pool:\n127.0.0.1:10001, 127.0.0.1:10002\n\n"
 	testCtrlSuit(t, h, req, 200, expect)
@@ -60,7 +60,7 @@ func TestListAllVirtualServer(t *testing.T) {
 
 func TestListVirtualServer(t *testing.T) {
 	b := mockBalancer(t)
-	h := ListVirtualServer(b)
+	h := listVirtualServer(b)
 	req := httptest.NewRequest("GET", "/vs/web", nil)
 	req = mux.SetURLVars(req, map[string]string{"name": "web"})
 
@@ -73,7 +73,7 @@ func TestListVirtualServer(t *testing.T) {
 
 func TestStatsHandler(t *testing.T) {
 	b := mockBalancer(t)
-	h := &StatsHandler{b}
+	h := statsHandler(b)
 	req := httptest.NewRequest("GET", "/stats", nil)
 	data := &stats.Data{
 		StatusCode: "200",
@@ -95,7 +95,7 @@ func TestStatsHandler(t *testing.T) {
 
 func TestModifyVirtualServerStatus(t *testing.T) {
 	b := mockBalancer(t)
-	h := ModifyVirtualServerStatus(b)
+	h := modifyVirtualServerStatus(b)
 
 	// enable
 	body, _ := json.Marshal(map[string]string{"action": "enable"})
@@ -138,7 +138,7 @@ func TestModifyVirtualServerStatus(t *testing.T) {
 
 func TestAddVirtualServer(t *testing.T) {
 	b := mockBalancer(t)
-	h := AddVirtualServer(b)
+	h := addVirtualServer(b)
 	body, _ := json.Marshal(map[string]string{"name": "redis", "address": "127.0.0.1:6379"})
 	req := httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
 	expect := "Add success"
@@ -162,7 +162,7 @@ func TestAddVirtualServer(t *testing.T) {
 
 func TestAddPoolMember(t *testing.T) {
 	b := mockBalancer(t)
-	h := AddPoolMember(b)
+	h := addPoolMember(b)
 	body, _ := json.Marshal(map[string]interface{}{"address": "127.0.0.1:10005"})
 	req := httptest.NewRequest("POST", "/vs/web/pool", bytes.NewReader(body))
 	req = mux.SetURLVars(req, map[string]string{"name": "web"})
@@ -183,7 +183,7 @@ func TestAddPoolMember(t *testing.T) {
 
 func TestDeletePoolMember(t *testing.T) {
 	b := mockBalancer(t)
-	h := DeletePoolMember(b)
+	h := deletePoolMember(b)
 	body, _ := json.Marshal(map[string]string{"address": "127.0.0.1:10001"})
 	req := httptest.NewRequest("DELETE", "/vs/web/pool", bytes.NewReader(body))
 	req = mux.SetURLVars(req, map[string]string{"name": "web"})

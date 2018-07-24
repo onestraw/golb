@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testSuit(t *testing.T, username, password string, expected_status int) {
+func testSuit(t *testing.T, username, password string, expectedStatus int) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})
@@ -22,7 +22,7 @@ func testSuit(t *testing.T, username, password string, expected_status int) {
 	h.ServeHTTP(r, req)
 
 	resp := r.Result()
-	assert.Equal(t, expected_status, resp.StatusCode)
+	assert.Equal(t, expectedStatus, resp.StatusCode)
 }
 
 func TestAuthPass(t *testing.T) {
