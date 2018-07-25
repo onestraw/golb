@@ -52,8 +52,8 @@ func New(configFile string) (*Service, error) {
 // Run starts the LB service.
 func (s *Service) Run() error {
 	log.Infof("Starting...")
-	sigC := make(chan os.Signal)
-	signal.Notify(sigC, os.Interrupt, os.Kill, syscall.SIGTERM)
+	sigC := make(chan os.Signal, 1)
+	signal.Notify(sigC, os.Interrupt, syscall.SIGTERM)
 
 	s.discovery.Run(s.balancer)
 	s.controller.Run(s.balancer)

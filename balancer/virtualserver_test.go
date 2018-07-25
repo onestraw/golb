@@ -187,9 +187,11 @@ func TestOpt(t *testing.T) {
 	assert.Contains(t, err.Error(), "not exist")
 
 	cert, err := ioutil.TempFile("", "temp.pem")
-	key, err := ioutil.TempFile("", "temp.key")
 	require.NoError(t, err)
 	defer syscall.Unlink(cert.Name())
+	key, err := ioutil.TempFile("", "temp.key")
+	require.NoError(t, err)
+	defer syscall.Unlink(key.Name())
 
 	vs, err = NewVirtualServer(ProtocolOpt("https"), TLSOpt(cert.Name(), ""))
 	assert.Nil(t, vs)

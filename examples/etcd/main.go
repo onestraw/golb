@@ -11,6 +11,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
 )
 
 type option struct {
@@ -61,7 +62,7 @@ func main() {
 
 func gracefulShutdown(srv *http.Server, tbe time.Duration) {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP, syscall.SIGQUIT)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP, syscall.SIGQUIT)
 
 	s := <-ch
 	log.Infof("receive signal %v", s)
@@ -72,7 +73,7 @@ func gracefulShutdown(srv *http.Server, tbe time.Duration) {
 	// API gateway should be responsible for failover (retry work)
 	log.Infof("wait %v before exiting...", tbe)
 	time.Sleep(tbe)
-	if err := srv.Shutdown(nil); err != nil {
+	if err := srv.Shutdown(context.TODO()); err != nil {
 		log.Fatal(err)
 	}
 

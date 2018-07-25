@@ -23,7 +23,7 @@ type ServiceDiscovery struct {
 }
 
 // New returns a ServiceDiscovery object.
-func New(opts ...optSetter) (*ServiceDiscovery, error) {
+func New(opts ...ServiceDiscoveryOption) (*ServiceDiscovery, error) {
 	sd := &ServiceDiscovery{Enabled: false}
 	for _, opt := range opts {
 		if err := opt(sd); err != nil {
@@ -34,10 +34,11 @@ func New(opts ...optSetter) (*ServiceDiscovery, error) {
 	return sd, nil
 }
 
-type optSetter func(*ServiceDiscovery) error
+// ServiceDiscoveryOption provides option setter for ServiceDiscovery.
+type ServiceDiscoveryOption func(*ServiceDiscovery) error
 
 // TypeOpt return a function to set ServiceDiscovery type.
-func TypeOpt(t string) optSetter {
+func TypeOpt(t string) ServiceDiscoveryOption {
 	return func(sd *ServiceDiscovery) error {
 		if t != "etcd" {
 			return fmt.Errorf("service discovery type %q currently not supported", t)
@@ -48,7 +49,7 @@ func TypeOpt(t string) optSetter {
 }
 
 // ClusterOpt return a function to set ServiceDiscovery cluster address.
-func ClusterOpt(c string) optSetter {
+func ClusterOpt(c string) ServiceDiscoveryOption {
 	return func(sd *ServiceDiscovery) error {
 		if c == "" {
 			return fmt.Errorf("Cluster can not be empty")
@@ -59,7 +60,7 @@ func ClusterOpt(c string) optSetter {
 }
 
 // PrefixOpt return a function to set key prefix.
-func PrefixOpt(p string) optSetter {
+func PrefixOpt(p string) ServiceDiscoveryOption {
 	return func(sd *ServiceDiscovery) error {
 		p = strings.TrimSuffix(p, "/")
 		if p == "" {
@@ -77,7 +78,7 @@ func PrefixOpt(p string) optSetter {
 }
 
 // SecurityOpt return a function to set tls config.
-func SecurityOpt(certFile, keyFile, trustedCAFile string) optSetter {
+func SecurityOpt(certFile, keyFile, trustedCAFile string) ServiceDiscoveryOption {
 	return func(sd *ServiceDiscovery) error {
 		if certFile == "" && keyFile == "" {
 			log.Infof("Service discovery security (https) is disabled")

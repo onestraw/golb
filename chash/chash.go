@@ -82,10 +82,7 @@ func (p *Pool) Add(addr string, args ...interface{}) {
 	}
 
 	sort.Slice(p.sortedHashes, func(i, j int) bool {
-		if p.sortedHashes[i] < p.sortedHashes[j] {
-			return true
-		}
-		return false
+		return p.sortedHashes[i] < p.sortedHashes[j]
 	})
 }
 

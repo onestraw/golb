@@ -83,10 +83,11 @@ type VirtualServer struct {
 	status string
 }
 
-type optSetter func(*VirtualServer) error
+// VirtualServerOption provides option setter for VirtualServer.
+type VirtualServerOption func(*VirtualServer) error
 
 // NameOpt returns a function to set name.
-func NameOpt(name string) optSetter {
+func NameOpt(name string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if name == "" {
 			return ErrVirtualServerNameEmpty
@@ -97,7 +98,7 @@ func NameOpt(name string) optSetter {
 }
 
 // AddressOpt returns a function to set address.
-func AddressOpt(addr string) optSetter {
+func AddressOpt(addr string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if addr == "" {
 			return ErrVirtualServerAddressEmpty
@@ -108,7 +109,7 @@ func AddressOpt(addr string) optSetter {
 }
 
 // ServerNameOpt returns a function to set server name.
-func ServerNameOpt(serverName string) optSetter {
+func ServerNameOpt(serverName string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if serverName == "" {
 			serverName = DefaultServerName
@@ -119,7 +120,7 @@ func ServerNameOpt(serverName string) optSetter {
 }
 
 // ProtocolOpt returns a function to set protocol.
-func ProtocolOpt(proto string) optSetter {
+func ProtocolOpt(proto string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if proto == "" {
 			proto = ProtoHTTP
@@ -133,7 +134,7 @@ func ProtocolOpt(proto string) optSetter {
 }
 
 // TLSOpt returns a function to set TLS and should be called after ProtocolOpt.
-func TLSOpt(certFile, keyFile string) optSetter {
+func TLSOpt(certFile, keyFile string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if vs.Protocol != ProtoHTTPS {
 			return nil
@@ -152,7 +153,7 @@ func TLSOpt(certFile, keyFile string) optSetter {
 }
 
 // LBMethodOpt returns a function to set LBMethod.
-func LBMethodOpt(method string) optSetter {
+func LBMethodOpt(method string) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		if method == "" {
 			method = LBRoundRobin
@@ -166,7 +167,7 @@ func LBMethodOpt(method string) optSetter {
 }
 
 // PoolOpt returns a function to set pool.
-func PoolOpt(peers []config.Server) optSetter {
+func PoolOpt(peers []config.Server) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		method := vs.LBMethod
 		if method == LBRoundRobin {
@@ -189,7 +190,7 @@ func PoolOpt(peers []config.Server) optSetter {
 }
 
 // RetryOpt returns a function to set retry.
-func RetryOpt(enable bool) optSetter {
+func RetryOpt(enable bool) VirtualServerOption {
 	return func(vs *VirtualServer) error {
 		vs.retry = enable
 		return nil
@@ -197,7 +198,7 @@ func RetryOpt(enable bool) optSetter {
 }
 
 // NewVirtualServer returns a VirtualServer object.
-func NewVirtualServer(opts ...optSetter) (*VirtualServer, error) {
+func NewVirtualServer(opts ...VirtualServerOption) (*VirtualServer, error) {
 	vs := &VirtualServer{
 		Protocol:     ProtoHTTP,
 		ServerName:   DefaultServerName,
@@ -305,7 +306,7 @@ func (s *VirtualServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if peer != "" && rw.code/100 == 5 {
 			s.fail(peer)
 		}
-		cost := time.Now().Sub(timeBegin) / time.Millisecond
+		cost := time.Since(timeBegin) / time.Millisecond
 		log.Infof("%s - %s %s(%s)%s %s %dms- %d", r.RemoteAddr, r.Method, r.Host, peer, r.URL, r.Proto, cost, rw.code)
 	}()
 
