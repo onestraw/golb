@@ -6,9 +6,13 @@ env:
 before_install:
   - go get github.com/mattn/goveralls
   - go get github.com/modocache/gover
+  - go get github.com/golang/lint/golint
+  - go get honnef.co/go/tools/cmd/{gosimple,staticcheck}
+  - go get github.com/client9/misspell/cmd/misspell
 
 script:
-  - go test -race -v ./...
+  - make check
+  - make test-verbose
   - ./coveralls.bash
 
 go:
