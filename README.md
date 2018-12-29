@@ -15,6 +15,7 @@ Yet another load balancer
 - [controller](controller/): dynamic configuration, **REST API to start/stop/add/remove LB at runtime**
 - [service discovery](discovery/): autodiscover backend services with **etcd** or **consul**
 - [statistics](stats/): HTTP method/path/code/bytes
+- [conf](config/): yaml and json configuration
 
 ## Examples
 
