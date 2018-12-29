@@ -13,7 +13,7 @@ Yet another load balancer
 - [chash](chash/): cosistent hashing method
 - [balancer](balancer/): **multiple LB instances, passive health check, SSL offloading**
 - [controller](controller/): dynamic configuration, **REST API to start/stop/add/remove LB at runtime**
-- [service discovery](discovery/): autodiscover backend services with **etcd**
+- [service discovery](discovery/): autodiscover backend services with **etcd** or **consul**
 - [statistics](stats/): HTTP method/path/code/bytes
 
 ## Examples
@@ -21,6 +21,7 @@ Yet another load balancer
 - [Basic configuration and REST API](examples/restapi)
 - [SSL offloading](examples/https)
 - [Service discovery with etcd](examples/etcd)
+- [Service discovery with consul](examples/consul)
 
 ## LICENSE
 
