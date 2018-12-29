@@ -8,7 +8,13 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/onestraw/golb/balancer"
+	"github.com/onestraw/golb/discovery/consul"
 	"github.com/onestraw/golb/discovery/etcd"
+)
+
+const (
+	etcdBackend   = "etcd"
+	consulBackend = "consul"
 )
 
 // ServiceDiscovery provides meta data describling a discovery config.
@@ -40,7 +46,7 @@ type ServiceDiscoveryOption func(*ServiceDiscovery) error
 // TypeOpt return a function to set ServiceDiscovery type.
 func TypeOpt(t string) ServiceDiscoveryOption {
 	return func(sd *ServiceDiscovery) error {
-		if t != "etcd" {
+		if t != etcdBackend && t != consulBackend {
 			return fmt.Errorf("service discovery type %q currently not supported", t)
 		}
 		sd.Type = t
@@ -97,6 +103,10 @@ func SecurityOpt(certFile, keyFile, trustedCAFile string) ServiceDiscoveryOption
 	}
 }
 
+type discoverer interface {
+	Run(*balancer.Balancer)
+}
+
 // Run starts the ServiceDiscovery service.
 func (sd *ServiceDiscovery) Run(balancer *balancer.Balancer) {
 	if !sd.Enabled {
@@ -104,10 +114,19 @@ func (sd *ServiceDiscovery) Run(balancer *balancer.Balancer) {
 		return
 	}
 
-	cli, err := etcd.New(sd.Cluster, sd.Prefix, sd.CertFile, sd.KeyFile, sd.TrustedCAFile)
+	var d discoverer
+	var err error
+
+	switch sd.Type {
+	case etcdBackend:
+		d, err = etcd.New(sd.Cluster, sd.Prefix, sd.CertFile, sd.KeyFile, sd.TrustedCAFile)
+	case consulBackend:
+		d, err = consul.New(sd.Cluster)
+	}
 	if err != nil {
-		log.Errorf("etcd.New() err=%v", err)
+		log.Errorf("New discoverer err=%v", err)
 		return
 	}
-	go cli.Run(balancer)
+
+	go d.Run(balancer)
 }

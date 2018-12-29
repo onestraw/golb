@@ -69,6 +69,54 @@
   version = "v1.6.2"
 
 [[projects]]
+  digest = "1:f8cb7c367c825e0c0be75f17e9b003d39b1240a1535fbbf095a18d7bb0d0c9c9"
+  name = "github.com/hashicorp/consul"
+  packages = ["api"]
+  pruneopts = "UT"
+  revision = "e716d1b5f8be252b3e53906c6d5632e0228f30fa"
+  version = "v1.2.2"
+
+[[projects]]
+  digest = "1:f47d6109c2034cb16bd62b220e18afd5aa9d5a1630fe5d937ad96a4fb7cbb277"
+  name = "github.com/hashicorp/go-cleanhttp"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e8ab9daed8d1ddd2d3c4efba338fe2eeae2e4f18"
+  version = "v0.5.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:45aad874d3c7d5e8610427c81870fb54970b981692930ec2a319ce4cb89d7a00"
+  name = "github.com/hashicorp/go-rootcerts"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "6bb64b370b90e7ef1fa532be9e591a81c3493e00"
+
+[[projects]]
+  digest = "1:0dd7b7b01769f9df356dc99f9e4144bdbabf6c79041ea7c0892379c5737f3c44"
+  name = "github.com/hashicorp/serf"
+  packages = ["coordinate"]
+  pruneopts = "UT"
+  revision = "d6574a5bb1226678d7010325fb6c985db20ee458"
+  version = "v0.8.1"
+
+[[projects]]
+  digest = "1:78bbb1ba5b7c3f2ed0ea1eab57bdd3859aec7e177811563edc41198a760b06af"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "ae18d6b8b3205b561c79e8e5f69bff09736185f4"
+  version = "v1.0.0"
+
+[[projects]]
+  digest = "1:645110e089152bd0f4a011a2648fbb0e4df5977be73ca605781157ac297f50c4"
+  name = "github.com/mitchellh/mapstructure"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "fa473d140ef3c6adf42d6b391fe76707f1f243c8"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
   name = "github.com/pmezard/go-difflib"
   packages = ["difflib"]
@@ -206,6 +254,7 @@
     "github.com/coreos/etcd/mvcc/mvccpb",
     "github.com/coreos/etcd/pkg/transport",
     "github.com/gorilla/mux",
+    "github.com/hashicorp/consul/api",
     "github.com/sirupsen/logrus",
     "github.com/stretchr/testify/assert",
     "github.com/stretchr/testify/require",
