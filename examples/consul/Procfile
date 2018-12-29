@@ -1,0 +1,7 @@
+# https://github.com/mattn/goreman
+consul: consul agent -dev -config-dir=consul.d/
+Golb: golb -config=golb.json
+Client: watch 'curl http://127.0.0.1:8081'
+S10001: ./server -addr=:10001
+S10002: ./server -addr=:10002
+S10003: ./server -addr=:10003

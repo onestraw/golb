@@ -6,7 +6,7 @@ test:
 	GOCACHE=off go test $(TESTFLAG) $(PKGS)
 
 test-verbose:
-	GOCACHE=off go test -v $(TESTFLAG) $(PKGS)
+	go test -v $(TESTFLAG) $(PKGS)
 
 loadtest:
 	dd if=/dev/zero ibs=1k count=1 of=test.data

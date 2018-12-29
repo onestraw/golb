@@ -1,0 +1,13 @@
+controller:
+  address: 127.0.0.1:6587
+  auth:
+    username: admin
+    password: admin
+virtual_server:
+  - name: web
+    address: 127.0.0.1:8081
+    pool:
+      - address: "127.0.0.1:10001"
+        weight: 1
+      - address: "127.0.0.1:10002"
+        weight: 2
