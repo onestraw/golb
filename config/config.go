@@ -12,10 +12,10 @@ import (
 
 // Configuration error.
 var (
-	ErrVirtualServerDuplicated   = errors.New("Vritual Server Duplicated")
-	ErrPoolMemberDuplicated      = errors.New("Pool Member Duplicated")
-	ErrVirtualServerNameEmpty    = errors.New("Vritual Server Name is not specified")
-	ErrVirtualServerAddressEmpty = errors.New("Vritual Server Address is not specified")
+	ErrVirtualServerDuplicated   = errors.New("vritual server duplicated")
+	ErrPoolMemberDuplicated      = errors.New("pool member duplicated")
+	ErrVirtualServerNameEmpty    = errors.New("vritual server name is not specified")
+	ErrVirtualServerAddressEmpty = errors.New("vritual server address is not specified")
 )
 
 // Server configuration.

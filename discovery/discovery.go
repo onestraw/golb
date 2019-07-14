@@ -58,7 +58,7 @@ func TypeOpt(t string) ServiceDiscoveryOption {
 func ClusterOpt(c string) ServiceDiscoveryOption {
 	return func(sd *ServiceDiscovery) error {
 		if c == "" {
-			return fmt.Errorf("Cluster can not be empty")
+			return fmt.Errorf("cluster can not be empty")
 		}
 		sd.Cluster = c
 		return nil
@@ -70,7 +70,7 @@ func PrefixOpt(p string) ServiceDiscoveryOption {
 	return func(sd *ServiceDiscovery) error {
 		p = strings.TrimSuffix(p, "/")
 		if p == "" {
-			return fmt.Errorf("Prefix can not be empty")
+			return fmt.Errorf("prefix can not be empty")
 		}
 		if p[0] != '/' {
 			return fmt.Errorf("prefix not start with '/'")
@@ -91,10 +91,10 @@ func SecurityOpt(certFile, keyFile, trustedCAFile string) ServiceDiscoveryOption
 			return nil
 		}
 		if _, err := os.Stat(certFile); err != nil {
-			return fmt.Errorf("Cert file '%s' does not exist", certFile)
+			return fmt.Errorf("cert file '%s' does not exist", certFile)
 		}
 		if _, err := os.Stat(keyFile); err != nil {
-			return fmt.Errorf("Key file '%s' does not exist", keyFile)
+			return fmt.Errorf("key file '%s' does not exist", keyFile)
 		}
 		sd.CertFile = certFile
 		sd.KeyFile = keyFile

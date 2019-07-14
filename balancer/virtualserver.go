@@ -140,10 +140,10 @@ func TLSOpt(certFile, keyFile string) VirtualServerOption {
 			return nil
 		}
 		if _, err := os.Stat(certFile); err != nil {
-			return fmt.Errorf("Cert file '%s' does not exist", certFile)
+			return fmt.Errorf("cert file '%s' does not exist", certFile)
 		}
 		if _, err := os.Stat(keyFile); err != nil {
-			return fmt.Errorf("Key file '%s' does not exist", keyFile)
+			return fmt.Errorf("key file '%s' does not exist", keyFile)
 		}
 
 		vs.CertFile = certFile

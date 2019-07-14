@@ -128,7 +128,7 @@ func TestModifyVirtualServerStatus(t *testing.T) {
 	body, _ = json.Marshal(map[string]string{})
 	req = httptest.NewRequest("POST", "/vs", bytes.NewReader(body))
 	req = mux.SetURLVars(req, map[string]string{"name": "web"})
-	testCtrlSuit(t, h, req, 400, "Unknown action")
+	testCtrlSuit(t, h, req, 400, "unknown action")
 
 	// bad request
 	req = httptest.NewRequest("POST", "/vs", strings.NewReader(""))

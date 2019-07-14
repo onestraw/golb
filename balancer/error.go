@@ -7,13 +7,13 @@ import (
 
 // Known errors.
 var (
-	ErrNotSupportedMethod          = errors.New("Not supported LB method")
-	ErrNotSupportedProto           = errors.New("Not supported Protocol")
-	ErrVirtualServerNameEmpty      = errors.New("Vritual Server Name is not specified")
-	ErrVirtualServerAddressEmpty   = errors.New("Vritual Server Address is not specified")
-	ErrVirtualServerNameExisted    = errors.New("Vritual Server Name Existed")
-	ErrVirtualServerAddressExisted = errors.New("Vritual Server Address Existed")
-	ErrVirtualServerNotFound       = errors.New("Virtaul Server Not Found")
+	ErrNotSupportedMethod          = errors.New("not supported LB method")
+	ErrNotSupportedProto           = errors.New("not supported protocol")
+	ErrVirtualServerNameEmpty      = errors.New("virtual server name is not specified")
+	ErrVirtualServerAddressEmpty   = errors.New("virtual server address is not specified")
+	ErrVirtualServerNameExisted    = errors.New("virtual server name existed")
+	ErrVirtualServerAddressExisted = errors.New("virtual server address existed")
+	ErrVirtualServerNotFound       = errors.New("virtual server not found")
 )
 
 type balancerError struct {

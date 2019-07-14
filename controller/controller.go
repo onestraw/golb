@@ -132,7 +132,7 @@ type modifyVirtualServer struct {
 	Action string `json:"action"`
 }
 
-var errUnknownAction = errors.New("Unknown action")
+var errUnknownAction = errors.New("unknown action")
 
 func modifyVirtualServerStatus(b *balancer.Balancer) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
