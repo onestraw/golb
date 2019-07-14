@@ -1,6 +1,7 @@
 PKGS := $(shell go list ./... | grep -v 'examples/')
 TXT_FILES := $(shell find * -type f -not -path 'vendor/**')
 TESTFLAG=-race -cover
+export GO111MODULE=on
 
 test:
 	GOCACHE=off go test $(TESTFLAG) $(PKGS)

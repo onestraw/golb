@@ -11,6 +11,7 @@ before_install:
   - go get github.com/client9/misspell/cmd/misspell
 
 script:
+  - export GO111MODULE=on
   - make check
   - make test-verbose
   - ./coveralls.bash
