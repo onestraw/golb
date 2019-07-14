@@ -13,7 +13,7 @@ loadtest:
 	ab -k -c100 -t30 -T application/octet-stream -p test.data 'http://127.0.0.1:8081/'
 	rm test.data
 
-check: vet lint misspell staticcheck gosimple
+check: vet lint misspell staticcheck
 
 lint:
 	@echo "golint"
@@ -30,10 +30,6 @@ misspell:
 staticcheck:
 	@echo "staticcheck"
 	staticcheck $(PKGS)
-
-gosimple:
-	@echo "gosimple"
-	gosimple $(PKGS)
 
 build:
 	go install github.com/onestraw/golb/cmd/golb/
