@@ -1,5 +1,5 @@
 PKGS := $(shell go list ./... | grep -v 'examples/')
-TXT_FILES := $(shell find * -type f -not -path 'vendor/**')
+TXT_FILES := $(shell find * -type f -not -path 'vendor/**' -not -name 'go.sum')
 TESTFLAG=-race -cover
 export GO111MODULE=on
 
