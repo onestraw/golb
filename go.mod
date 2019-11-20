@@ -45,3 +45,5 @@ require (
 	google.golang.org/genproto v0.0.0-20181221175505-bd9b4fb69e2f // indirect
 	gopkg.in/yaml.v2 v2.2.2
 )
+
+go 1.13

@@ -4,7 +4,7 @@ TESTFLAG=-race -cover
 export GO111MODULE=on
 
 test:
-	GOCACHE=off go test $(TESTFLAG) $(PKGS)
+	go test $(TESTFLAG) $(PKGS)
 
 test-verbose:
 	go test -v $(TESTFLAG) $(PKGS)
